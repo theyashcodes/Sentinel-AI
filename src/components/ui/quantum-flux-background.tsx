@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
-interface Point {
+interface Particle {
   x: number;
   y: number;
   ox: number;
@@ -12,149 +12,144 @@ interface Point {
   brightness: number;
 }
 
+// Lightweight multi-octave noise using sine harmonics (no dependencies)
+function noise2D(x: number, y: number): number {
+  const a = Math.sin(x * 0.00713 + y * 0.00397 + 1.23) * 0.5 + 0.5;
+  const b = Math.sin(x * 0.01427 - y * 0.00891 + 2.71) * 0.5 + 0.5;
+  const c = Math.sin(-x * 0.00521 + y * 0.01203 + 0.87) * 0.5 + 0.5;
+  return (a * 0.5 + b * 0.3 + c * 0.2);
+}
+
+// Palette: 8 HSL shades from hue 200, sat 40%, lightness 20-80%
+function buildPalette(): string[] {
+  const palette: string[] = [];
+  for (let i = 0; i < 8; i++) {
+    const l = 20 + (i / 7) * 60;
+    palette.push(`hsl(200,40%,${l.toFixed(1)}%)`);
+  }
+  return palette;
+}
+
 export function QuantumFluxBackground() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    let animationFrameId: number;
-    let width = (canvas.width = window.innerWidth);
+    // --- Config (exact match to p5.js draft) ---
+    const SPACING       = 12;
+    const MAG_RADIUS    = 180;
+    const FORCE         = 15;
+    const FRICTION      = 0.92;
+    const RESTORE       = 0.04;
+    const THRESHOLD     = 50;   // brightness threshold to draw
+
+    const palette = buildPalette();
+    let width  = (canvas.width  = window.innerWidth);
     let height = (canvas.height = window.innerHeight);
 
-    // Force Field Configuration matching the draft
-    const spacing = 16;
-    const magnifierRadius = 180;
-    const forceStrength = 14;
-    const friction = 0.92;
-    const restoreSpeed = 0.04;
+    let particles: Particle[] = [];
 
-    let points: Point[] = [];
-
-    // Simple procedural noise function for point density
-    const pseudoNoise = (x: number, y: number) => {
-      const sinX = Math.sin(x * 0.008 + 1.2);
-      const cosY = Math.cos(y * 0.008 + 0.8);
-      const sinXY = Math.sin((x + y) * 0.005);
-      return (sinX + cosY + sinXY + 3) / 6;
-    };
-
-    const initPoints = () => {
-      points = [];
-      for (let y = 0; y < height; y += spacing) {
-        for (let x = 0; x < width; x += spacing) {
-          const n = pseudoNoise(x, y);
-          if (n < 0.25) continue;
-
-          points.push({
-            x,
-            y,
-            ox: x,
-            oy: y,
-            vx: 0,
-            vy: 0,
+    const buildParticles = () => {
+      particles = [];
+      for (let y = 0; y < height; y += SPACING) {
+        for (let x = 0; x < width; x += SPACING) {
+          const n = noise2D(x, y);
+          if (n < 0.30) continue;            // density gate (≈ 0.3 threshold)
+          particles.push({
+            x, y, ox: x, oy: y,
+            vx: 0, vy: 0,
             brightness: n * 255,
           });
         }
       }
     };
 
-    initPoints();
+    buildParticles();
 
-    let targetMouseX = width / 2;
-    let targetMouseY = height / 2;
-    let currentMouseX = targetMouseX;
-    let currentMouseY = targetMouseY;
+    // Smooth mouse position (lerp factor 0.1)
+    let mx = width  / 2;
+    let my = height / 2;
+    let tx = mx, ty = my;
 
-    const handleMouseMove = (e: MouseEvent) => {
-      targetMouseX = e.clientX;
-      targetMouseY = e.clientY;
-    };
-
-    const handleResize = () => {
-      if (!canvas) return;
-      width = canvas.width = window.innerWidth;
+    const onMove = (e: MouseEvent) => { tx = e.clientX; ty = e.clientY; };
+    const onResize = () => {
+      width  = canvas.width  = window.innerWidth;
       height = canvas.height = window.innerHeight;
-      initPoints();
+      buildParticles();
     };
 
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("resize", handleResize);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("resize",    onResize);
 
-    const render = () => {
-      // Trail effect
-      ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+    let raf: number;
+
+    const draw = () => {
+      // Trail (p5 background with alpha)
+      ctx.fillStyle = "rgba(0,0,0,0.6)";
       ctx.fillRect(0, 0, width, height);
 
-      // Smooth mouse lerp
-      currentMouseX += (targetMouseX - currentMouseX) * 0.1;
-      currentMouseY += (targetMouseY - currentMouseY) * 0.1;
+      // Lerp mouse
+      mx += (tx - mx) * 0.1;
+      my += (ty - my) * 0.1;
 
-      for (let i = 0; i < points.length; i++) {
-        const pt = points[i];
-        if (!pt) continue;
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i]!;
 
-        // Force field interaction
-        const dx = pt.x - currentMouseX;
-        const dy = pt.y - currentMouseY;
+        // Force field
+        const dx   = p.x - mx;
+        const dy   = p.y - my;
         const dist = Math.sqrt(dx * dx + dy * dy);
 
-        if (dist < magnifierRadius) {
-          const force = forceStrength / (dist * 0.05 + 1);
-          const nx = dist === 0 ? 0 : dx / dist;
-          const ny = dist === 0 ? 0 : dy / dist;
-          pt.vx += nx * force;
-          pt.vy += ny * force;
+        if (dist < MAG_RADIUS && dist > 0) {
+          const push = FORCE / (dist * 0.05 + 1);
+          p.vx += (dx / dist) * push;
+          p.vy += (dy / dist) * push;
         }
 
-        // Apply friction and restoring spring force
-        pt.vx *= friction;
-        pt.vy *= friction;
-        pt.vx += (pt.ox - pt.x) * restoreSpeed;
-        pt.vy += (pt.oy - pt.y) * restoreSpeed;
+        // Damping + spring restore
+        p.vx *= FRICTION;
+        p.vy *= FRICTION;
+        p.vx += (p.ox - p.x) * RESTORE;
+        p.vy += (p.oy - p.y) * RESTORE;
+        p.x  += p.vx;
+        p.y  += p.vy;
 
-        pt.x += pt.vx;
-        pt.y += pt.vy;
+        if (p.brightness < THRESHOLD) continue;
 
-        // Render point with hue variations matching Quantum Flux palette
-        if (pt.brightness > 45) {
-          ctx.beginPath();
+        // Palette index (0-7)
+        const idx = Math.min(7, Math.floor((p.brightness / 255) * 7));
+        ctx.fillStyle = palette[idx]!;
 
-          // Calculate color based on brightness & mouse distance
-          const normBright = Math.min(1, pt.brightness / 255);
-          const lightness = 20 + normBright * 60;
-          let size = 1 + normBright * 1.8;
-
-          if (dist < magnifierRadius) {
-            const magFactor = 1 + (1 - dist / magnifierRadius) * 1.5;
-            size *= magFactor;
-          }
-
-          ctx.arc(pt.x, pt.y, size, 0, Math.PI * 2);
-          ctx.fillStyle = `hsl(200, 40%, ${lightness}%)`;
-          ctx.fill();
+        // Size: 1-3px based on brightness; 2.5x at cursor centre
+        let size = 0.5 + (p.brightness / 255) * 1.5;
+        if (dist < MAG_RADIUS) {
+          size *= 1 + (1 - dist / MAG_RADIUS) * 1.5; // up to 2.5x at centre
         }
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
+        ctx.fill();
       }
 
-      animationFrameId = requestAnimationFrame(render);
+      raf = requestAnimationFrame(draw);
     };
 
-    render();
+    draw();
 
     return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("resize", handleResize);
-      cancelAnimationFrame(animationFrameId);
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("resize",    onResize);
+      cancelAnimationFrame(raf);
     };
   }, []);
 
   return (
-    <div className="fixed inset-0 pointer-events-none z-0 bg-black">
-      <canvas ref={canvasRef} className="absolute inset-0 block w-full h-full" />
+    <div className="fixed inset-0 z-0 bg-black pointer-events-none">
+      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
     </div>
   );
 }
