@@ -1,4 +1,4 @@
-Loaded Prisma config from prisma.config.ts.
+
 
 -- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "public";
