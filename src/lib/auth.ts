@@ -3,14 +3,26 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { emailOTP } from "better-auth/plugins";
 import { db } from "@/lib/db";
 
+const baseURL =
+    process.env.BETTER_AUTH_URL ??
+    process.env.NEXT_PUBLIC_APP_URL ??
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined);
+
 export const auth = betterAuth({
+    baseURL,
+    trustedOrigins: baseURL ? [baseURL] : [],
     database: prismaAdapter(db, {
         provider: "postgresql",
     }),
     plugins: [
         emailOTP({
             async sendVerificationOTP({ email, otp, type }) {
-                // MOCK EMAIL SENDING FOR DEVELOPMENT
+                if (process.env.NODE_ENV === "production") {
+                    throw new Error("Email delivery is not configured for this environment.");
+                }
+
+                // Local development only: avoid sending a real email while making
+                // the one-time password available to the developer.
                 console.log(`\n\n========================================`);
                 console.log(`🔒 EMAIL OTP MOCK`);
                 console.log(`To: ${email}`);

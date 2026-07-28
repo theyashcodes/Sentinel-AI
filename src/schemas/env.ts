@@ -10,8 +10,8 @@ import { z } from 'zod';
 
 const envSchema = z.object({
   // ──── Database ─────────────────────────────────────
-  DATABASE_URL: z.string().url().optional(),
-  DIRECT_URL: z.string().url().optional(),
+  DATABASE_URL: z.string().url(),
+  DIRECT_URL: z.string().url(),
 
   // ──── Redis ────────────────────────────────────────
   UPSTASH_REDIS_REST_URL: z.string().url().optional(),
@@ -27,6 +27,10 @@ const envSchema = z.object({
   // ──── AI ───────────────────────────────────────────
   AI_API_KEY: z.string().optional(),
   AI_MODEL: z.string().optional(),
+
+  // ──── Authentication ──────────────────────────────
+  BETTER_AUTH_SECRET: z.string().min(32),
+  BETTER_AUTH_URL: z.string().url(),
 
   // ──── Monitoring ───────────────────────────────────
   NEXT_PUBLIC_SENTRY_DSN: z.string().optional(),

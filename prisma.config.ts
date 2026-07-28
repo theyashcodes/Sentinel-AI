@@ -6,6 +6,8 @@ import { defineConfig } from "prisma/config";
  */
 export default defineConfig({
   datasource: {
-    url: process.env.DATABASE_URL!,
+    // Use the direct connection for Prisma CLI commands. The pooled URL remains
+    // reserved for the serverless runtime in src/lib/db.ts.
+    url: process.env.DIRECT_URL ?? process.env.DATABASE_URL!,
   },
 });

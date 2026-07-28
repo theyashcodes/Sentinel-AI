@@ -21,19 +21,26 @@ export default function SignInPage() {
   
   const router = useRouter();
 
+  const getErrorMessage = (error: { message?: string; code?: string } | null) =>
+    error?.message ?? error?.code ?? "Unable to sign in. Please try again.";
+
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await signIn.email({
+    try {
+      const { error } = await signIn.email({
         email,
         password
-    });
-    setLoading(false);
+      });
 
-    if (error) {
-        alert(error.message);
-    } else {
+      if (error) {
+        alert(getErrorMessage(error));
+        return;
+      }
+
         router.push("/dashboard");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -41,19 +48,21 @@ export default function SignInPage() {
     e.preventDefault();
     if (!email) return alert("Please enter your email");
     setLoading(true);
-    
-    // Send OTP for password reset
-    const { error } = await authClient.emailOtp.sendVerificationOtp({
+    try {
+      const { error } = await authClient.emailOtp.sendVerificationOtp({
         email,
         type: "forget-password"
-    });
-    
-    setLoading(false);
-    if (error) {
-        alert(error.message);
-    } else {
+      });
+
+      if (error) {
+        alert(getErrorMessage(error));
+        return;
+      }
+
         alert("If an account exists, an OTP has been sent. Check the console for the mocked OTP.");
         setMode("verify-otp");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -62,18 +71,22 @@ export default function SignInPage() {
     if (!otp || !password) return alert("Please fill all fields");
     setLoading(true);
 
-    const { error } = await authClient.resetPassword({
+    try {
+      const { error } = await authClient.resetPassword({
         newPassword: password,
         token: otp // Better auth emailOTP plugin accepts the OTP as the token for password resets
-    });
+      });
 
-    setLoading(false);
-    if (error) {
-        alert(error.message);
-    } else {
+      if (error) {
+        alert(getErrorMessage(error));
+        return;
+      }
+
         alert("Password reset successfully. You can now log in.");
         setMode("sign-in");
         setPassword("");
+    } finally {
+      setLoading(false);
     }
   };
 

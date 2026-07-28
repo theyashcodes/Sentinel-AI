@@ -7,21 +7,14 @@ import { ThreatSummary } from "@/components/dashboard/ThreatSummary";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
 import { Activity, ShieldAlert, FolderGit2, Key, Search } from "lucide-react";
 import Link from "next/link";
-import { cookies } from "next/headers";
-import { db } from "@/lib/db";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { auth } from "@/lib/auth";
 
 export default async function DashboardPage() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get("better-auth.session_token")?.value || cookieStore.get("__Secure-better-auth.session_token")?.value;
-  
-  let user = null;
-  if (token) {
-    const sessionRecord = await db.session.findFirst({
-      where: { token },
-      include: { user: true }
-    });
-    user = sessionRecord?.user;
-  }
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) redirect("/auth/sign-in");
+  const user = session.user;
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">

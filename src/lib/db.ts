@@ -18,6 +18,11 @@ const globalForPrisma = globalThis as unknown as {
 
 // Use pg pool adapter
 const connectionString = process.env.DATABASE_URL;
+
+if (!connectionString) {
+  throw new Error("DATABASE_URL is required to initialize Prisma.");
+}
+
 const pool = new Pool({ connectionString });
 const adapter = new PrismaPg(pool);
 
