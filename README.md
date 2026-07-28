@@ -1,36 +1,166 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+<div align="center">
 
-## Getting Started
+# 🛡️ Sentinel AI
 
-First, run the development server:
+### AI-Powered Cyber Threat Intelligence Platform
+
+Detect phishing websites, malicious QR codes, suspicious URLs, and cyber threats using AI-powered security analysis.
+
+![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
+![Prisma](https://img.shields.io/badge/Prisma-2D3748?logo=prisma)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-336791?logo=postgresql)
+![Gemini](https://img.shields.io/badge/Gemini-AI-blue)
+![License](https://img.shields.io/badge/License-MIT-green)
+
+🌐 **Live Demo:** https://sentinel-ai-omega-two.vercel.app
+
+</div>
+
+---
+
+# 📖 Overview
+
+Sentinel AI is a modern cybersecurity platform that combines Artificial Intelligence with threat intelligence techniques to detect phishing websites, malicious QR codes, suspicious URLs, and social engineering attacks.
+
+The project is built as a full-stack Next.js application using Serverless APIs, Prisma ORM, Neon PostgreSQL, BetterAuth, and Google's Gemini AI.
+
+---
+
+# ✨ Features
+
+## 🔗 URL Security Scanner
+
+- AI-powered URL analysis
+- WHOIS inspection
+- DNS lookup
+- HTTP Header analysis
+- SSL validation
+- Risk scoring
+- Threat classification
+- Scan history
+
+---
+
+## 📱 QR Code Scanner
+
+- Upload QR images
+- Automatic QR decoding
+- Destination URL extraction
+- Phishing detection
+- AI security audit
+- Risk score generation
+- Threat classification
+
+---
+
+## 🔐 Authentication
+
+- BetterAuth
+- Email & Password Authentication
+- Secure Session Management
+- Protected Dashboard
+
+---
+
+## 📊 Dashboard
+
+- Scan History
+- Recent Activity
+- Security Analytics
+- Threat Summary
+
+---
+
+# 🧠 AI Powered Analysis
+
+Sentinel AI uses **Google Gemini AI** to generate intelligent security reports including:
+
+- Threat Classification
+- Risk Analysis
+- AI Reasoning
+- Security Recommendations
+- Confidence Analysis
+
+---
+
+# 🛠️ Tech Stack
+
+## Frontend
+
+- Next.js 16
+- React
+- TypeScript
+- Tailwind CSS
+- ShadCN UI
+
+## Backend
+
+- Next.js API Routes
+- BetterAuth
+- Prisma ORM
+- Neon PostgreSQL
+
+## AI
+
+- Google Gemini AI
+
+## Deployment
+
+- Vercel
+
+---
+
+# 📸 Screenshots
+
+### Dashboard
+
+(Add Screenshot)
+
+### URL Scanner
+
+(Add Screenshot)
+
+### QR Scanner
+
+(Add Screenshot)
+
+---
+
+# ⚙️ Installation
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+git clone https://github.com/theyashcodes/Sentinel-AI.git
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+cd Sentinel-AI
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+npm install
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-## Learn More
+DATABASE_URL=
+DIRECT_URL=
 
-To learn more about Next.js, take a look at the following resources:
+BETTER_AUTH_SECRET=
+BETTER_AUTH_URL=
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+NEXT_PUBLIC_APP_URL=
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+GEMINI_API_KEY=
 
-## Deploy on Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+src/
+│
+├── app/
+│   ├── api/
+│   ├── dashboard/
+│   └── auth/
+│
+├── components/
+│
+├── lib/
+│
+├── providers/
+│
+├── modules/
+│
+└── types/
