@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { 
   LayoutDashboard, 
   Search, 
@@ -12,6 +12,7 @@ import {
   Key, 
   Building2, 
   Settings,
+  LogOut,
   X,
   ShieldCheck
 } from "lucide-react";
@@ -40,8 +41,18 @@ interface SidebarProps {
 
 export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const { data: session } = authClient.useSession();
   const user = session?.user;
+
+  const handleSignOut = async () => {
+    try {
+      await authClient.signOut();
+    } finally {
+      router.push("/auth/sign-in");
+      router.refresh();
+    }
+  };
 
   return (
     <aside
@@ -134,6 +145,17 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
           );
         })}
       </nav>
+
+      <div className="px-6 pb-3">
+        <button
+          type="button"
+          onClick={handleSignOut}
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-300 shadow-lg shadow-red-950/10 transition-colors hover:bg-red-500/20 hover:text-red-100 focus:outline-none focus:ring-2 focus:ring-red-400/60"
+        >
+          <LogOut className="h-4 w-4" aria-hidden="true" />
+          Log out
+        </button>
+      </div>
 
       {/* User Profile Card */}
       <div className="p-6">
