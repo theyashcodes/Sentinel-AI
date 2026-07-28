@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const https = require('https');
 const evidence = { tls: null, redirects: [] };
 function fetch(url, hopCount=0) {

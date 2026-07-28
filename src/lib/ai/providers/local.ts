@@ -1,6 +1,5 @@
 import { IAIProvider, AIAnalysisResponse } from "./base";
 import { PreScanEvidence } from "../processors/evidence";
-import { RuleEngine } from "../processors/rules";
 
 export class LocalProvider implements IAIProvider {
   name = "LOCAL_PROVIDER";
@@ -65,7 +64,7 @@ export class LocalProvider implements IAIProvider {
     try {
       const match = prompt.match(/"threatType":\s*"([^"]+)"/);
       if (match && match[1]) threatType = match[1];
-    } catch (e) {}
+    } catch {}
 
     if (threatType !== "SAFE") {
       reasoningParts.push("Phishing indicators detected based on gathered intelligence.");
@@ -78,7 +77,7 @@ export class LocalProvider implements IAIProvider {
     try {
       const match = prompt.match(/"confidence":\s*(\d+)/);
       if (match && match[1]) confidence = parseInt(match[1], 10);
-    } catch (e) {}
+    } catch {}
 
     const startTime = Date.now();
 

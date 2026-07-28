@@ -4,7 +4,7 @@ export class GeminiProvider implements IAIProvider {
   name = "GEMINI_PROVIDER";
   model = process.env.GEMINI_MODEL || "gemini-1.5-flash";
 
-  async analyze(prompt: string, evidence?: unknown): Promise<AIAnalysisResponse> {
+  async analyze(prompt: string, _evidence?: unknown): Promise<AIAnalysisResponse> {
     const apiKey = process.env.GEMINI_API_KEY;
     
     console.log("\n===== GEMINI DEBUG =====");

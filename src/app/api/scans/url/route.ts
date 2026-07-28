@@ -4,7 +4,7 @@ import { EvidenceGatherer } from "@/lib/scanner/url/gatherer";
 import { ThreatAnalyzer, UrlScannerPromptBuilder } from "@/lib/ai/core";
 import { db } from "@/lib/db";
 import crypto from "crypto";
-import { Prisma } from "@prisma/client";
+import type { InputJsonValue } from "@prisma/client/runtime/client";
 
 export async function POST(req: NextRequest) {
   let payloadHash = "";
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
           tokenUsage: analysisResult.cost.promptTokens + analysisResult.cost.completionTokens,
           confidenceScore: analysisResult.confidence,
           threatCategory: analysisResult.threatType,
-          analysisMetadata: analysisResult.aiResponse as unknown as Prisma.InputJsonValue,
+          analysisMetadata: analysisResult.aiResponse as unknown as InputJsonValue,
           processingCost: analysisResult.cost.estimatedCostUsd
         }
       });

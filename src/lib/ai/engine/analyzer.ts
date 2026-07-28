@@ -71,7 +71,7 @@ export class ThreatAnalyzer {
         try {
           aiResponse = await fallbackProvider.analyze(prompt, request.evidence);
           aiResponse.fallbackReason = error instanceof Error ? error.message : "Unknown error";
-        } catch (fallbackError) {
+        } catch {
           throw new Error("Both Primary and Fallback AI Providers failed.");
         }
       } else {

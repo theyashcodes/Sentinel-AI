@@ -2,7 +2,7 @@ import { Bell } from "lucide-react";
 
 export function RecentActivity() {
   // Placeholder data
-  const activities: any[] = [];
+  const activities: unknown[] = [];
 
   return (
     <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 flex flex-col h-full">

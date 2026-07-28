@@ -37,8 +37,8 @@ async function runTest() {
     console.log("Calling GeminiProvider.analyze()...");
     const response = await provider.analyze(prompt, evidence);
     console.log(`Success in ${Date.now() - start}ms:`, JSON.stringify(response, null, 2));
-  } catch (err: any) {
-    console.error("Error from provider:", err.message);
+  } catch (err) {
+    console.error("Error from provider:", err instanceof Error ? err.message : err);
   }
 }
 

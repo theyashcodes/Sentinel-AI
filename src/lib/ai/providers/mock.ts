@@ -4,7 +4,7 @@ export class MockProvider implements IAIProvider {
   name = "MOCK_PROVIDER";
   model = "mock-model-v1";
 
-  async analyze(prompt: string, evidence?: unknown): Promise<AIAnalysisResponse> {
+  async analyze(prompt: string, _evidence?: unknown): Promise<AIAnalysisResponse> {
     // Artificial delay to simulate network request
     await new Promise(resolve => setTimeout(resolve, 800));
 
@@ -15,7 +15,7 @@ export class MockProvider implements IAIProvider {
     try {
       const match = prompt.match(/"confidence":\s*(\d+)/);
       if (match && match[1]) confidence = parseInt(match[1], 10);
-    } catch (e) {}
+    } catch {}
 
     const startTime = Date.now();
     

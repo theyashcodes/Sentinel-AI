@@ -4,7 +4,7 @@ import { EvidenceGatherer } from "@/lib/scanner/url/gatherer";
 import { ThreatAnalyzer, UrlScannerPromptBuilder, PreScanEvidence } from "@/lib/ai/core";
 import { db } from "@/lib/db";
 import crypto from "crypto";
-import { Prisma } from "@prisma/client";
+import type { InputJsonValue } from "@prisma/client/runtime/client";
 import { auth } from "@/lib/auth";
 import { QRDecoder } from "@/modules/scanner/qr/services/decoder";
 import { QRSecurityChecker } from "@/modules/scanner/qr/services/security-checker";
@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
           ipHash,
           userId,
           payload: decodedText,
-          evidenceMetadata: { securityChecks: securityChecks as unknown as Prisma.InputJsonValue }
+          evidenceMetadata: { securityChecks: securityChecks as unknown as InputJsonValue }
         }
       });
 
@@ -199,7 +199,7 @@ export async function POST(req: NextRequest) {
           ipHash,
           userId,
           payload: normalizedUrl,
-          evidenceMetadata: { error: errorMessage, securityChecks: securityChecks as unknown as Prisma.InputJsonValue }
+          evidenceMetadata: { error: errorMessage, securityChecks: securityChecks as unknown as InputJsonValue }
         }
       });
 
@@ -243,7 +243,7 @@ export async function POST(req: NextRequest) {
           ipHash,
           userId,
           payload: normalizedUrl,
-          evidenceMetadata: { securityChecks: securityChecks as unknown as Prisma.InputJsonValue }
+          evidenceMetadata: { securityChecks: securityChecks as unknown as InputJsonValue }
         }
       });
 
@@ -259,7 +259,7 @@ export async function POST(req: NextRequest) {
           analysisMetadata: {
             ...(analysisResult.aiResponse as unknown as Record<string, unknown>),
             evidence
-          } as unknown as Prisma.InputJsonValue,
+          } as unknown as InputJsonValue,
           processingCost: analysisResult.cost.estimatedCostUsd
         }
       });

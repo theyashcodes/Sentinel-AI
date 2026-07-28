@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ShieldAlert, ArrowRight } from "lucide-react";
 
 export function ThreatSummary() {
-  const threats: any[] = [];
+  const threats: unknown[] = [];
 
   return (
     <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 flex flex-col h-full">

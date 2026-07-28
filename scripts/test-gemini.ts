@@ -51,8 +51,6 @@ async function runTest() {
   const abortController = new AbortController();
   const timeoutId = setTimeout(() => abortController.abort(), 30000);
 
-  const startDns = Date.now();
-
   try {
     const fetchStart = Date.now();
     const response = await fetch(endpoint, {
@@ -78,10 +76,11 @@ async function runTest() {
     console.log("\nRaw Response Body:");
     console.log(text);
     
-  } catch (err: any) {
+  } catch (err) {
     clearTimeout(timeoutId);
-    console.error(`\nFetch failed: ${err.message}`);
-    if (err.name === 'AbortError') {
+    const error = err instanceof Error ? err : new Error(String(err));
+    console.error(`\nFetch failed: ${error.message}`);
+    if (error.name === 'AbortError') {
       console.error("The request timed out after 30 seconds.");
     }
   }

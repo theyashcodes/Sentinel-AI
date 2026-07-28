@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Bell } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 export function NotificationMenu() {
   const [isOpen, setIsOpen] = useState(false);
@@ -39,7 +38,7 @@ export function NotificationMenu() {
           <div className="py-2 px-4 max-h-64 overflow-y-auto">
             <div className="text-sm text-zinc-400 text-center py-4">
               <Bell className="h-8 w-8 mx-auto text-zinc-600 mb-2" />
-              You're all caught up!
+              You&apos;re all caught up!
             </div>
           </div>
         </div>

@@ -42,6 +42,8 @@ export function UserDropdown() {
       >
         <span className="sr-only">Open user menu</span>
         {user?.image ? (
+          // User profile image URLs are provided by the authentication provider and may use arbitrary hosts.
+          // eslint-disable-next-line @next/next/no-img-element
           <img src={user.image} alt={user.name || "User avatar"} className="h-8 w-8 rounded-full bg-zinc-800 object-cover" />
         ) : (
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-500/20 text-indigo-400">

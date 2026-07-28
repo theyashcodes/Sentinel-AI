@@ -3,7 +3,7 @@ import { Activity, ArrowRight } from "lucide-react";
 
 export function RecentScans() {
   // Placeholder data
-  const scans: any[] = [];
+  const scans: unknown[] = [];
 
   return (
     <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 flex flex-col h-full">

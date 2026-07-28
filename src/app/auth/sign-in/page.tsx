@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { signIn, emailOtp } from "@/lib/auth-client";
+import { signIn } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

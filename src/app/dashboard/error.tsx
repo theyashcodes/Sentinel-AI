@@ -2,7 +2,6 @@
 
 import { useEffect } from "react";
 import { AlertTriangle } from "lucide-react";
-import { PageHeader } from "@/components/dashboard/PageHeader";
 
 export default function DashboardError({
   error,
