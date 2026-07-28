@@ -4,7 +4,19 @@ import type { ReactNode } from 'react';
 import { siteConfig } from '@/config/site';
 import { AppProviders } from '@/providers/app-providers';
 
+import { Space_Grotesk, Inter } from 'next/font/google';
+
 import './globals.css';
+
+const spaceGrotesk = Space_Grotesk({
+  subsets: ['latin'],
+  variable: '--font-space-grotesk',
+});
+
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
+});
 
 export const metadata: Metadata = {
   title: {
@@ -49,7 +61,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="min-h-screen antialiased">
+      <body className={`${spaceGrotesk.variable} ${inter.variable} min-h-screen antialiased bg-black font-sans`}>
         <AppProviders>{children}</AppProviders>
       </body>
     </html>

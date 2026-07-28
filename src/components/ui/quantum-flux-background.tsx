@@ -2,15 +2,14 @@
 
 import { useEffect, useRef } from "react";
 
-interface Particle {
+interface Point {
   x: number;
   y: number;
+  ox: number;
+  oy: number;
   vx: number;
   vy: number;
-  size: number;
-  color: string;
-  alpha: number;
-  maxAlpha: number;
+  brightness: number;
 }
 
 export function QuantumFluxBackground() {
@@ -27,120 +26,119 @@ export function QuantumFluxBackground() {
     let width = (canvas.width = window.innerWidth);
     let height = (canvas.height = window.innerHeight);
 
+    // Force Field Configuration matching the draft
+    const spacing = 16;
+    const magnifierRadius = 180;
+    const forceStrength = 14;
+    const friction = 0.92;
+    const restoreSpeed = 0.04;
+
+    let points: Point[] = [];
+
+    // Simple procedural noise function for point density
+    const pseudoNoise = (x: number, y: number) => {
+      const sinX = Math.sin(x * 0.008 + 1.2);
+      const cosY = Math.cos(y * 0.008 + 0.8);
+      const sinXY = Math.sin((x + y) * 0.005);
+      return (sinX + cosY + sinXY + 3) / 6;
+    };
+
+    const initPoints = () => {
+      points = [];
+      for (let y = 0; y < height; y += spacing) {
+        for (let x = 0; x < width; x += spacing) {
+          const n = pseudoNoise(x, y);
+          if (n < 0.25) continue;
+
+          points.push({
+            x,
+            y,
+            ox: x,
+            oy: y,
+            vx: 0,
+            vy: 0,
+            brightness: n * 255,
+          });
+        }
+      }
+    };
+
+    initPoints();
+
+    let targetMouseX = width / 2;
+    let targetMouseY = height / 2;
+    let currentMouseX = targetMouseX;
+    let currentMouseY = targetMouseY;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      targetMouseX = e.clientX;
+      targetMouseY = e.clientY;
+    };
+
     const handleResize = () => {
       if (!canvas) return;
       width = canvas.width = window.innerWidth;
       height = canvas.height = window.innerHeight;
-    };
-
-    window.addEventListener("resize", handleResize);
-
-    // Quantum Flux Particle Setup
-    const particlesCount = Math.floor(Math.min(width, height) / 14);
-    const particles: Particle[] = [];
-    const colors = ["#06b6d4", "#3b82f6", "#8b5cf6", "#6366f1"];
-
-    for (let i = 0; i < particlesCount; i++) {
-      particles.push({
-        x: Math.random() * width,
-        y: Math.random() * height,
-        vx: (Math.random() - 0.5) * 0.4,
-        vy: (Math.random() - 0.5) * 0.4,
-        size: Math.random() * 2 + 1,
-        color: colors[Math.floor(Math.random() * colors.length)] ?? "#06b6d4",
-        alpha: Math.random() * 0.5 + 0.2,
-        maxAlpha: Math.random() * 0.5 + 0.4,
-      });
-    }
-
-    let mouseX = width / 2;
-    let mouseY = height / 2;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      mouseX = e.clientX;
-      mouseY = e.clientY;
+      initPoints();
     };
 
     window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("resize", handleResize);
 
     const render = () => {
-      ctx.clearRect(0, 0, width, height);
+      // Trail effect
+      ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+      ctx.fillRect(0, 0, width, height);
 
-      // Draw subtle background grid
-      ctx.strokeStyle = "rgba(15, 23, 42, 0.4)";
-      ctx.lineWidth = 1;
-      const gridSize = 60;
+      // Smooth mouse lerp
+      currentMouseX += (targetMouseX - currentMouseX) * 0.1;
+      currentMouseY += (targetMouseY - currentMouseY) * 0.1;
 
-      for (let x = 0; x < width; x += gridSize) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, height);
-        ctx.stroke();
-      }
+      for (let i = 0; i < points.length; i++) {
+        const pt = points[i];
+        if (!pt) continue;
 
-      for (let y = 0; y < height; y += gridSize) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
-        ctx.stroke();
-      }
-
-      // Draw particle connections
-      for (let i = 0; i < particles.length; i++) {
-        const pi = particles[i];
-        if (!pi) continue;
-
-        for (let j = i + 1; j < particles.length; j++) {
-          const pj = particles[j];
-          if (!pj) continue;
-
-          const dx = pi.x - pj.x;
-          const dy = pi.y - pj.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-
-          if (dist < 110) {
-            ctx.save();
-            ctx.beginPath();
-            ctx.moveTo(pi.x, pi.y);
-            ctx.lineTo(pj.x, pj.y);
-            const opacity = (1 - dist / 110) * 0.25;
-            ctx.strokeStyle = `rgba(6, 182, 212, ${opacity})`;
-            ctx.lineWidth = 0.8;
-            ctx.stroke();
-            ctx.restore();
-          }
-        }
-      }
-
-      // Render & update particles
-      particles.forEach((p) => {
-        p.x += p.vx;
-        p.y += p.vy;
-
-        // Bounce from walls
-        if (p.x < 0 || p.x > width) p.vx *= -1;
-        if (p.y < 0 || p.y > height) p.vy *= -1;
-
-        // Slight cursor attraction
-        const dx = mouseX - p.x;
-        const dy = mouseY - p.y;
+        // Force field interaction
+        const dx = pt.x - currentMouseX;
+        const dy = pt.y - currentMouseY;
         const dist = Math.sqrt(dx * dx + dy * dy);
 
-        if (dist < 180) {
-          p.x += (dx / dist) * 0.3;
-          p.y += (dy / dist) * 0.3;
+        if (dist < magnifierRadius) {
+          const force = forceStrength / (dist * 0.05 + 1);
+          const nx = dist === 0 ? 0 : dx / dist;
+          const ny = dist === 0 ? 0 : dy / dist;
+          pt.vx += nx * force;
+          pt.vy += ny * force;
         }
 
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = p.color;
-        ctx.globalAlpha = p.alpha;
-        ctx.shadowBlur = 12;
-        ctx.shadowColor = p.color;
-        ctx.fill();
-        ctx.restore();
-      });
+        // Apply friction and restoring spring force
+        pt.vx *= friction;
+        pt.vy *= friction;
+        pt.vx += (pt.ox - pt.x) * restoreSpeed;
+        pt.vy += (pt.oy - pt.y) * restoreSpeed;
+
+        pt.x += pt.vx;
+        pt.y += pt.vy;
+
+        // Render point with hue variations matching Quantum Flux palette
+        if (pt.brightness > 45) {
+          ctx.beginPath();
+
+          // Calculate color based on brightness & mouse distance
+          const normBright = Math.min(1, pt.brightness / 255);
+          const lightness = 20 + normBright * 60;
+          let size = 1 + normBright * 1.8;
+
+          if (dist < magnifierRadius) {
+            const magFactor = 1 + (1 - dist / magnifierRadius) * 1.5;
+            size *= magFactor;
+          }
+
+          ctx.arc(pt.x, pt.y, size, 0, Math.PI * 2);
+          ctx.fillStyle = `hsl(200, 40%, ${lightness}%)`;
+          ctx.fill();
+        }
+      }
 
       animationFrameId = requestAnimationFrame(render);
     };
@@ -148,20 +146,14 @@ export function QuantumFluxBackground() {
     render();
 
     return () => {
-      window.removeEventListener("resize", handleResize);
       window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("resize", handleResize);
       cancelAnimationFrame(animationFrameId);
     };
   }, []);
 
   return (
-    <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden bg-neutral-950">
-      {/* Radial Ambient Glows */}
-      <div className="absolute -top-40 -left-40 w-96 h-96 bg-cyan-500/15 rounded-full blur-3xl animate-pulse" />
-      <div className="absolute top-1/3 -right-40 w-[30rem] h-[30rem] bg-purple-600/15 rounded-full blur-3xl" />
-      <div className="absolute -bottom-40 left-1/3 w-[28rem] h-[28rem] bg-blue-600/15 rounded-full blur-3xl animate-pulse" />
-
-      {/* Interactive Particle Canvas */}
+    <div className="fixed inset-0 pointer-events-none z-0 bg-black">
       <canvas ref={canvasRef} className="absolute inset-0 block w-full h-full" />
     </div>
   );
