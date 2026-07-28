@@ -5,8 +5,9 @@ import { signUp } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { QuantumFluxBackground } from "@/components/ui/quantum-flux-background";
+import { SentinelLogo } from "@/components/icons/SentinelLogo";
 import { motion, AnimatePresence } from "framer-motion";
-import { Layers, User, Mail, Lock, AlertCircle, ArrowRight } from "lucide-react";
+import { User, Mail, Lock, AlertCircle, ArrowRight } from "lucide-react";
 
 export default function SignUpPage() {
   const [name, setName] = useState("");
@@ -61,9 +62,7 @@ export default function SignUpPage() {
         >
           {/* Logo / Header */}
           <div className="text-center space-y-2">
-            <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-white/5 border border-white/10 mb-2">
-              <Layers className="w-6 h-6 text-white" />
-            </div>
+            <SentinelLogo className="mb-2 h-12 w-12" />
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white title-font uppercase">
               SENTINEL AI
             </h1>

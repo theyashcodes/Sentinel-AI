@@ -13,11 +13,11 @@ import {
   Building2, 
   Settings,
   LogOut,
-  X,
-  ShieldCheck
+  X
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { authClient } from "@/lib/auth-client";
+import { SentinelLogo } from "@/components/icons/SentinelLogo";
 
 const managementNav = [
   { id: "nav-dashboard", name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -64,9 +64,7 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
       {/* Brand Header */}
       <div className="p-8 flex items-center justify-between">
         <Link href="/dashboard" className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-lg bg-gradient-to-br from-[#bc13fe] to-[#00f2ff]">
-            <ShieldCheck className="w-6 h-6 text-white" />
-          </div>
+          <SentinelLogo className="h-10 w-10" />
           <span className="font-bold text-xl tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-500 font-display">
             SENTINEL AI
           </span>

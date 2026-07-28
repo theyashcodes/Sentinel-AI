@@ -5,8 +5,9 @@ import { signIn, authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { QuantumFluxBackground } from "@/components/ui/quantum-flux-background";
+import { SentinelLogo } from "@/components/icons/SentinelLogo";
 import { motion, AnimatePresence } from "framer-motion";
-import { Layers, Mail, Lock, KeyRound, Eye, EyeOff, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Mail, Lock, KeyRound, Eye, EyeOff, AlertCircle, CheckCircle2 } from "lucide-react";
 
 export default function SignInPage() {
   const [email,    setEmail]    = useState("");
@@ -98,12 +99,7 @@ export default function SignInPage() {
 
           {/* ── Header ── */}
           <div className="text-center space-y-2">
-            <div
-              className="inline-flex items-center justify-center w-11 h-11 rounded-xl mb-1"
-              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)" }}
-            >
-              <Layers className="w-5 h-5 text-white" />
-            </div>
+            <SentinelLogo className="mb-1 h-11 w-11" iconClassName="h-5 w-5" />
 
             <h1 className="text-[22px] font-bold tracking-tight text-white title-font uppercase leading-tight">
               SENTINEL-AI
