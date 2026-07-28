@@ -1,0 +1,376 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
+  extensions = [vector]
+}
+
+model Organization {
+  id          String               @id @default(uuid()) @db.Uuid
+  name        String
+  slug        String?              @unique
+  logo        String?
+  metadata    String?
+  tier        Tier                 @default(FREE)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  invitations Invitation[]
+  members     OrganizationMember[]
+  projects    Project[]
+}
+
+model OrganizationMember {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  userId         String       @db.Uuid
+  role           String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+}
+
+model Invitation {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  email          String
+  role           String?
+  status         String
+  expiresAt      DateTime
+  inviterId      String       @db.Uuid
+  user           User         @relation(fields: [inviterId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model Project {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  name           String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  apiKeys        ApiKey[]
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  scans          Scan[]
+
+  @@index([organizationId])
+}
+
+model User {
+  id              String               @id @default(uuid()) @db.Uuid
+  name            String
+  email           String               @unique
+  emailVerified   Boolean              @default(false)
+  image           String?
+  passwordHash    String?
+  role            Role                 @default(USER)
+  reputationScore Int                  @default(0)
+  deletedAt       DateTime?
+  anonymizedAt    DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  accounts        Account[]
+  auditLogs       AuditLog[]
+  reports         CommunityReport[]
+  devices         Device[]
+  invitations     Invitation[]
+  lessonProgress  LessonProgress[]
+  notifications   Notification[]
+  memberships     OrganizationMember[]
+  scans           Scan[]
+  sessions        Session[]
+
+  @@index([email])
+}
+
+model Device {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @db.Uuid
+  deviceType   String
+  pushToken    String?
+  trusted      Boolean  @default(false)
+  lastIpHash   String?
+  lastActiveAt DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model ApiKey {
+  id         String    @id @default(uuid()) @db.Uuid
+  name       String
+  keyHash    String    @unique
+  prefix     String
+  scopes     String[]
+  projectId  String    @db.Uuid
+  rateLimit  Int       @default(100)
+  expiresAt  DateTime?
+  lastUsedAt DateTime?
+  isRevoked  Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  project    Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+model Account {
+  id                    String    @id @default(uuid()) @db.Uuid
+  accountId             String
+  providerId            String
+  userId                String    @db.Uuid
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+}
+
+model Session {
+  id        String   @id @default(uuid()) @db.Uuid
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Verification {
+  id         String    @id @default(uuid()) @db.Uuid
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime? @default(now())
+  updatedAt  DateTime? @updatedAt
+}
+
+model Scan {
+  id                    String      @id @default(uuid()) @db.Uuid
+  projectId             String?     @db.Uuid
+  userId                String?     @db.Uuid
+  ipHash                String?     @db.VarChar(64)
+  deviceFingerprintHash String?     @db.VarChar(64)
+  type                  ScanType
+  payloadHash           String      @db.VarChar(64)
+  payload               String?
+  storageKey            String?
+  payloadType           String?
+  payloadSize           Int?
+  status                ScanStatus  @default(QUEUED)
+  riskLevel             RiskLevel?  @default(UNKNOWN)
+  evidenceMetadata      Json?
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+  project               Project?    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user                  User?       @relation(fields: [userId], references: [id])
+  result                ScanResult?
+
+  @@index([projectId, createdAt])
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([ipHash])
+  @@index([payloadHash])
+  @@index([createdAt])
+}
+
+model ScanResult {
+  id               String                 @id @default(uuid()) @db.Uuid
+  scanId           String                 @unique @db.Uuid
+  aiProvider       String?
+  aiModel          String?
+  modelVersion     String?
+  promptVersion    String?
+  inferenceTimeMs  Int?
+  tokenUsage       Int?
+  processingCost   Float?
+  confidenceScore  Float?
+  threatCategory   String?
+  analysisMetadata Json?
+  embedding        Unsupported("vector")?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  scan             Scan                   @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  indicators       ScanResultIndicator[]
+}
+
+model ThreatCampaign {
+  id          String            @id @default(uuid()) @db.Uuid
+  name        String
+  description String?
+  actor       String?
+  status      String            @default("ACTIVE")
+  firstSeen   DateTime          @default(now())
+  lastSeen    DateTime          @default(now())
+  indicators  ThreatIndicator[]
+}
+
+model ThreatIndicator {
+  id                 String                @id @default(uuid()) @db.Uuid
+  type               IndicatorType
+  value              String                @unique
+  confidenceScore    Float
+  source             String
+  isActive           Boolean               @default(true)
+  metadata           Json?
+  falsePositiveCount Int                   @default(0)
+  campaignId         String?               @db.Uuid
+  firstSeen          DateTime              @default(now())
+  lastSeen           DateTime              @default(now())
+  expiresAt          DateTime?
+  updatedAt          DateTime              @updatedAt
+  reports            CommunityReport[]
+  scanResults        ScanResultIndicator[]
+  campaign           ThreatCampaign?       @relation(fields: [campaignId], references: [id])
+
+  @@index([value, type])
+  @@index([campaignId])
+}
+
+model ScanResultIndicator {
+  scanResultId      String          @db.Uuid
+  threatIndicatorId String          @db.Uuid
+  scanResult        ScanResult      @relation(fields: [scanResultId], references: [id], onDelete: Cascade)
+  threatIndicator   ThreatIndicator @relation(fields: [threatIndicatorId], references: [id], onDelete: Cascade)
+
+  @@id([scanResultId, threatIndicatorId])
+  @@index([threatIndicatorId])
+}
+
+model CommunityReport {
+  id          String          @id @default(uuid()) @db.Uuid
+  userId      String          @db.Uuid
+  indicatorId String          @db.Uuid
+  title       String
+  description String
+  upvotes     Int             @default(0)
+  status      String          @default("PENDING")
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  indicator   ThreatIndicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([indicatorId])
+}
+
+model LessonProgress {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @db.Uuid
+  courseId    String
+  lessonId    String
+  score       Int      @default(0)
+  completedAt DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId, lessonId])
+}
+
+model Notification {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  type      String
+  severity  String   @default("INFO")
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String?  @db.Uuid
+  action     String
+  entityType String
+  entityId   String   @db.Uuid
+  oldData    Json?
+  newData    Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+  user       User?    @relation(fields: [userId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+enum Role {
+  USER
+  MODERATOR
+  ADMIN
+}
+
+enum OrgRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+enum Tier {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+enum ScanType {
+  URL
+  MESSAGE
+  QR
+  SCREENSHOT
+  FILE
+}
+
+enum ScanStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+  RATE_LIMITED
+  CANCELLED
+}
+
+enum RiskLevel {
+  UNKNOWN
+  SAFE
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum IndicatorType {
+  DOMAIN
+  URL
+  IP
+  PHONE
+  EMAIL
+  WALLET
+  KEYWORD
+  HASH
+}

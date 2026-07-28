@@ -1,0 +1,32 @@
+import { PageHeader } from "@/components/dashboard/PageHeader";
+import { EmptyState } from "@/components/dashboard/EmptyState";
+import { Building2, Plus } from "lucide-react";
+import { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Organizations",
+};
+
+export default function OrganizationsPage() {
+  return (
+    <div>
+      <PageHeader 
+        title="Organizations" 
+        description="Manage your organizations, team members, and billing details."
+      >
+        <button
+          type="button"
+          className="inline-flex items-center gap-2 rounded-md bg-indigo-500 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-400"
+        >
+          <Plus className="h-4 w-4" />
+          New Organization
+        </button>
+      </PageHeader>
+      <EmptyState 
+        icon={Building2}
+        title="No organizations"
+        description="You don't belong to any organizations yet. Create one to collaborate with your team."
+      />
+    </div>
+  );
+}

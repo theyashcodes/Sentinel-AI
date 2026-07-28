@@ -1,0 +1,69 @@
+services:
+  # ──── Next.js Application ───────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: deps
+    command: npm run dev
+    ports:
+      - '3000:3000'
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://sentinel:sentinel@postgres:5432/sentinel_ai?schema=public
+      - DIRECT_URL=postgresql://sentinel:sentinel@postgres:5432/sentinel_ai?schema=public
+      - UPSTASH_REDIS_REST_URL=http://redis:6379
+      - LOG_LEVEL=debug
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ──── PostgreSQL ────────────────────────────────────────
+  postgres:
+    image: pgvector/pgvector:pg16
+    ports:
+      - '5432:5432'
+    environment:
+      POSTGRES_USER: sentinel
+      POSTGRES_PASSWORD: sentinel
+      POSTGRES_DB: sentinel_ai
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U sentinel -d sentinel_ai']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ──── Redis ─────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ──── Inngest Dev Server ────────────────────────────────
+  inngest:
+    image: inngest/inngest:latest
+    command: inngest dev --host 0.0.0.0
+    ports:
+      - '8288:8288'
+    environment:
+      - INNGEST_DEV=1
+
+
+
+volumes:
+  postgres_data:
+  redis_data:

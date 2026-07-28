@@ -1,0 +1,319 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import 'tailwindcss';
+
+/*
+ * ──────────────────────────────────────────────────────────
+ * Sentinel AI — Design System
+ *
+ * Dark matte black base. Deep blue + electric purple accents.
+ * Inspired by Linear, Vercel Dashboard, Stripe.
+ * ──────────────────────────────────────────────────────────
+ */
+
+/* ──── Tailwind v4 Theme Configuration ──────────────────── */
+@theme {
+  /* Typography */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', monospace;
+
+  /* Border Radius */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.625rem;
+  --radius-xl: 0.875rem;
+  --radius-2xl: 1rem;
+
+  /* Animation */
+  --animate-fade-in: fade-in 0.6s ease-out;
+  --animate-fade-in-up: fade-in-up 0.6s ease-out;
+  --animate-fade-in-down: fade-in-down 0.6s ease-out;
+  --animate-scale-in: scale-in 0.3s ease-out;
+  --animate-pulse-glow: pulse-glow 3s ease-in-out infinite;
+  --animate-gradient-shift: gradient-shift 8s ease infinite;
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-slide-up: slide-up 0.5s ease-out;
+  --animate-slide-down: slide-down 0.5s ease-out;
+
+  /* Shadows */
+  --shadow-glow-blue: 0 0 20px rgba(59, 130, 246, 0.3);
+  --shadow-glow-purple: 0 0 20px rgba(139, 92, 246, 0.3);
+  --shadow-glow-accent: 0 0 30px rgba(99, 111, 246, 0.2);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.3);
+  --shadow-elevated: 0 8px 30px rgba(0, 0, 0, 0.5);
+}
+
+/* ──── Keyframe Animations ─────────────────────────────── */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in-down {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-20px);
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* ──── CSS Custom Properties (Design Tokens) ────────────── */
+:root {
+  /* Background */
+  --background: hsl(0 0% 3.9%);
+  --background-secondary: hsl(240 6% 7%);
+  --background-tertiary: hsl(240 5% 10%);
+
+  /* Foreground */
+  --foreground: hsl(0 0% 98%);
+  --foreground-secondary: hsl(240 5% 75%);
+  --muted-foreground: hsl(240 5% 55%);
+
+  /* Accents */
+  --accent-blue: hsl(217 91% 60%);
+  --accent-purple: hsl(258 90% 66%);
+  --accent-blue-hover: hsl(217 91% 55%);
+  --accent-purple-hover: hsl(258 90% 60%);
+
+  /* Gradients */
+  --accent-gradient: linear-gradient(135deg, hsl(217 91% 60%), hsl(258 90% 66%));
+  --accent-gradient-hover: linear-gradient(135deg, hsl(217 91% 55%), hsl(258 90% 60%));
+  --surface-gradient: linear-gradient(180deg, hsl(240 6% 7%) 0%, hsl(0 0% 3.9%) 100%);
+
+  /* Borders */
+  --border: hsl(240 4% 16%);
+  --border-hover: hsl(240 4% 24%);
+  --border-accent: hsl(217 91% 60% / 0.3);
+
+  /* Cards */
+  --card: hsl(240 6% 7%);
+  --card-hover: hsl(240 6% 9%);
+  --card-foreground: hsl(0 0% 98%);
+
+  /* Status */
+  --destructive: hsl(0 84% 60%);
+  --destructive-foreground: hsl(0 0% 98%);
+  --success: hsl(142 76% 46%);
+  --success-foreground: hsl(0 0% 98%);
+  --warning: hsl(38 92% 50%);
+  --warning-foreground: hsl(0 0% 5%);
+  --info: hsl(217 91% 60%);
+
+  /* Inputs */
+  --input: hsl(240 4% 16%);
+  --input-focus: hsl(217 91% 60% / 0.3);
+
+  /* Ring */
+  --ring: hsl(217 91% 60%);
+
+  /* Radius */
+  --radius: 0.625rem;
+
+  /* Muted */
+  --muted: hsl(240 4% 16%);
+  --muted-foreground-val: hsl(240 5% 55%);
+
+  /* Popover */
+  --popover: hsl(240 6% 7%);
+  --popover-foreground: hsl(0 0% 98%);
+
+  /* Primary (accent blue) */
+  --primary: hsl(217 91% 60%);
+  --primary-foreground: hsl(0 0% 98%);
+
+  /* Secondary */
+  --secondary: hsl(240 4% 16%);
+  --secondary-foreground: hsl(0 0% 98%);
+
+  /* Accent */
+  --accent: hsl(240 4% 16%);
+  --accent-foreground: hsl(0 0% 98%);
+}
+
+/* ──── Base Styles ──────────────────────────────────────── */
+* {
+  border-color: var(--border);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ──── Utility Classes ─────────────────────────────────── */
+.text-gradient {
+  background: var(--accent-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.bg-gradient-accent {
+  background: var(--accent-gradient);
+}
+
+.bg-gradient-accent-hover:hover {
+  background: var(--accent-gradient-hover);
+}
+
+.border-gradient {
+  border-image: var(--accent-gradient) 1;
+}
+
+.glass {
+  background: rgba(10, 10, 15, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.glass-card {
+  background: rgba(15, 15, 25, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius);
+}
+
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.03) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+/* ──── Scrollbar Styling ────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(240 4% 20%);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(240 4% 30%);
+}
+
+/* ──── Selection ────────────────────────────────────────── */
+::selection {
+  background: hsl(217 91% 60% / 0.3);
+  color: hsl(0 0% 98%);
+}
+
+/* ──── Focus Styles ─────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
