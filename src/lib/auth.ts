@@ -6,11 +6,11 @@ import { db } from "@/lib/db";
 const baseURL =
     process.env.BETTER_AUTH_URL ??
     process.env.NEXT_PUBLIC_APP_URL ??
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined);
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
 
 export const auth = betterAuth({
     baseURL,
-    trustedOrigins: baseURL ? [baseURL] : [],
+    trustedOrigins: [baseURL],
     database: prismaAdapter(db, {
         provider: "postgresql",
     }),
