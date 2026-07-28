@@ -8,19 +8,22 @@ interface PageHeaderProps {
 
 export function PageHeader({ title, description, children }: PageHeaderProps) {
   return (
-    <div className="sm:flex sm:items-center sm:justify-between mb-8">
+    <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between mb-10">
       <div>
-        <h1 className="text-2xl font-bold leading-7 text-white sm:truncate sm:text-3xl sm:tracking-tight">
+        <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.22em] text-[#00f2ff]">
+          Sentinel command center
+        </p>
+        <h1 className="font-display text-3xl font-bold leading-none tracking-tight text-white sm:text-4xl">
           {title}
         </h1>
         {description && (
-          <p className="mt-1 max-w-2xl text-sm leading-6 text-zinc-400">
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-gray-400">
             {description}
           </p>
         )}
       </div>
       {children && (
-        <div className="mt-4 flex sm:ml-4 sm:mt-0">
+        <div className="flex shrink-0">
           {children}
         </div>
       )}

@@ -14,15 +14,15 @@ export default function SettingsPage() {
         description="Manage your account settings and preferences."
       />
       
-      <div className="rounded-xl border border-zinc-800 bg-zinc-900/50">
-        <div className="border-b border-zinc-800 px-6 py-5">
-          <h3 className="text-base font-semibold leading-6 text-white">Profile</h3>
-          <p className="mt-1 text-sm text-zinc-400">Update your personal information.</p>
+      <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.03] shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] backdrop-blur-md">
+        <div className="border-b border-white/10 px-6 py-5">
+          <h3 className="font-display text-lg font-bold leading-6 text-white">Profile</h3>
+          <p className="mt-1 text-sm text-gray-500">Update your personal information.</p>
         </div>
-        <div className="px-6 py-10 text-center">
-          <Settings className="mx-auto h-12 w-12 text-zinc-500" />
-          <h3 className="mt-2 text-sm font-semibold text-white">Settings Coming Soon</h3>
-          <p className="mt-1 text-sm text-zinc-400">We are currently building this section.</p>
+        <div className="px-6 py-14 text-center">
+          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border border-white/10 bg-white/5"><Settings className="h-9 w-9 text-[#00f2ff]" /></div>
+          <h3 className="mt-6 font-display text-xl font-bold text-white">Settings Coming Soon</h3>
+          <p className="mt-2 text-sm text-gray-500">We are currently building this section.</p>
         </div>
       </div>
     </div>

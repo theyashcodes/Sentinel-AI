@@ -13,126 +13,146 @@ import {
   Building2, 
   Settings,
   X,
-  ChevronLeft,
-  ChevronRight
+  ShieldCheck
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useEffect } from "react";
+import { authClient } from "@/lib/auth-client";
 
-const navItems = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "URL Scanner", href: "/dashboard/scanner/url", icon: Search },
-  { name: "QR Scanner", href: "/dashboard/scanner/qr", icon: QrCode },
-  { name: "Scan History", href: "/dashboard/history", icon: History },
-  { name: "Threat Intelligence", href: "/dashboard/threats", icon: ShieldAlert },
-  { name: "Projects", href: "/dashboard/projects", icon: FolderGit2 },
-  { name: "API Keys", href: "/dashboard/api-keys", icon: Key },
-  { name: "Organizations", href: "/dashboard/organizations", icon: Building2 },
-  { name: "Settings", href: "/dashboard/settings", icon: Settings },
+const managementNav = [
+  { id: "nav-dashboard", name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { id: "nav-url", name: "URL Scanner", href: "/dashboard/scanner/url", icon: Search },
+  { id: "nav-qr", name: "QR Scanner", href: "/dashboard/scanner/qr", icon: QrCode },
+  { id: "nav-history", name: "Scan History", href: "/dashboard/history", icon: History },
+];
+
+const infraNav = [
+  { id: "nav-threat", name: "Threat Intel", href: "/dashboard/threats", icon: ShieldAlert },
+  { id: "nav-projects", name: "Projects", href: "/dashboard/projects", icon: FolderGit2 },
+  { id: "nav-api", name: "API Keys", href: "/dashboard/api-keys", icon: Key },
+  { id: "nav-org", name: "Organizations", href: "/dashboard/organizations", icon: Building2 },
+  { id: "nav-settings", name: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 
 interface SidebarProps {
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
-  sidebarCollapsed: boolean;
-  setSidebarCollapsed: (collapsed: boolean) => void;
 }
 
-export function Sidebar({ sidebarOpen, setSidebarOpen, sidebarCollapsed, setSidebarCollapsed }: SidebarProps) {
+export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
   const pathname = usePathname();
-
-  // Close sidebar on route change for mobile
-  useEffect(() => {
-    setSidebarOpen(false);
-  }, [pathname, setSidebarOpen]);
+  const { data: session } = authClient.useSession();
+  const user = session?.user;
 
   return (
-    <>
-      {/* Mobile Backdrop */}
-      {sidebarOpen && (
-        <div 
-          className="fixed inset-0 z-40 bg-zinc-950/80 backdrop-blur-sm transition-opacity md:hidden"
-          onClick={() => setSidebarOpen(false)}
-          aria-hidden="true"
-        />
+    <aside
+      className={cn(
+        "w-72 fixed h-full border-r border-white/5 bg-black/40 backdrop-blur-xl z-50 flex flex-col transition-transform duration-300",
+        sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
       )}
+    >
+      {/* Brand Header */}
+      <div className="p-8 flex items-center justify-between">
+        <Link href="/dashboard" className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-lg bg-gradient-to-br from-[#bc13fe] to-[#00f2ff]">
+            <ShieldCheck className="w-6 h-6 text-white" />
+          </div>
+          <span className="font-bold text-xl tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-500 font-display">
+            SENTINEL AI
+          </span>
+        </Link>
+        <button
+          className="md:hidden text-gray-400 hover:text-white"
+          onClick={() => setSidebarOpen(false)}
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </div>
 
-      {/* Sidebar Content */}
-      <div className={cn(
-        "fixed inset-y-0 left-0 z-50 flex flex-col border-r border-zinc-800 bg-zinc-950/95 backdrop-blur-xl transition-all duration-300",
-        // Mobile translation
-        sidebarOpen ? "translate-x-0 w-64" : "-translate-x-full md:translate-x-0",
-        // Desktop width based on collapse state
-        sidebarCollapsed ? "md:w-20" : "md:w-64"
-      )}>
-        <div className="flex h-16 shrink-0 items-center justify-between px-4 border-b border-zinc-800">
-          <Link href="/dashboard" className={cn("flex items-center gap-2 font-bold text-lg tracking-tight text-white transition-opacity", sidebarCollapsed ? "md:opacity-0 md:hidden" : "opacity-100")}>
-            <ShieldAlert className="h-6 w-6 text-indigo-500 shrink-0" />
-            <span className="whitespace-nowrap">Sentinel AI</span>
-          </Link>
-          
-          {/* Mobile close button */}
-          <button 
-            type="button" 
-            className="md:hidden p-2 text-zinc-400 hover:text-zinc-300"
-            onClick={() => setSidebarOpen(false)}
-          >
-            <span className="sr-only">Close sidebar</span>
-            <X className="h-5 w-5" />
-          </button>
-
-          {/* Desktop logo icon when collapsed */}
-          {sidebarCollapsed && (
-            <Link href="/dashboard" className="hidden md:flex mx-auto items-center justify-center">
-              <ShieldAlert className="h-6 w-6 text-indigo-500" />
+      {/* Nav List */}
+      <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
+        <p className="px-4 text-[10px] font-bold text-gray-500 tracking-[0.2em] mb-4 uppercase">
+          Management
+        </p>
+        {managementNav.map((item) => {
+          const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
+          return (
+            <Link
+              key={item.id}
+              id={item.id}
+              href={item.href}
+              className={cn(
+                "flex items-center gap-3 px-4 py-3 rounded-xl transition-all group",
+                isActive
+                  ? "bg-gradient-to-r from-[rgba(188,19,254,0.15)] to-[rgba(0,242,255,0.15)] border border-[rgba(188,19,254,0.5)] shadow-[0_0_15px_rgba(188,19,254,0.3)] text-white"
+                  : "hover:bg-white/5 text-gray-400 hover:text-white"
+              )}
+            >
+              <item.icon
+                className={cn(
+                  "w-5 h-5 transition-colors",
+                  isActive ? "text-[#bc13fe]" : "group-hover:text-[#00f2ff]"
+                )}
+              />
+              <span className={cn("text-sm font-medium", isActive ? "font-semibold text-white" : "")}>
+                {item.name}
+              </span>
             </Link>
-          )}
-        </div>
-        
-        <div className="flex flex-1 flex-col overflow-y-auto py-4">
-          <nav className="flex-1 space-y-1 px-3">
-            {navItems.map((item) => {
-              const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href + '/'));
-              return (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  title={sidebarCollapsed ? item.name : undefined}
-                  className={cn(
-                    isActive
-                      ? "bg-zinc-800/80 text-white"
-                      : "text-zinc-400 hover:bg-zinc-800/50 hover:text-white",
-                    "group flex items-center gap-x-3 rounded-md py-2 text-sm font-medium transition-all duration-200",
-                    sidebarCollapsed ? "md:justify-center px-0" : "px-3"
-                  )}
-                >
-                  <item.icon
-                    className={cn(
-                      isActive ? "text-indigo-400" : "text-zinc-400 group-hover:text-indigo-400",
-                      "h-5 w-5 shrink-0 transition-colors"
-                    )}
-                    aria-hidden="true"
-                  />
-                  <span className={cn("whitespace-nowrap transition-opacity", sidebarCollapsed ? "md:hidden" : "block")}>
-                    {item.name}
-                  </span>
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
+          );
+        })}
 
-        {/* Desktop collapse toggle */}
-        <div className="hidden md:flex p-4 border-t border-zinc-800">
-          <button
-            type="button"
-            className="flex w-full items-center justify-center rounded-md p-2 text-zinc-400 hover:bg-zinc-800/50 hover:text-white transition-colors"
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          >
-            {sidebarCollapsed ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
-          </button>
+        <p className="px-4 text-[10px] font-bold text-gray-500 tracking-[0.2em] mt-8 mb-4 uppercase">
+          Infrastructure
+        </p>
+        {infraNav.map((item) => {
+          const isActive = pathname === item.href || pathname.startsWith(item.href);
+          return (
+            <Link
+              key={item.id}
+              id={item.id}
+              href={item.href}
+              className={cn(
+                "flex items-center gap-3 px-4 py-3 rounded-xl transition-all group",
+                isActive
+                  ? "bg-gradient-to-r from-[rgba(188,19,254,0.15)] to-[rgba(0,242,255,0.15)] border border-[rgba(188,19,254,0.5)] shadow-[0_0_15px_rgba(188,19,254,0.3)] text-white"
+                  : "hover:bg-white/5 text-gray-400 hover:text-white"
+              )}
+            >
+              <item.icon
+                className={cn(
+                  "w-5 h-5 transition-colors",
+                  isActive
+                    ? "text-[#bc13fe]"
+                    : item.id === "nav-threat"
+                    ? "group-hover:text-red-400"
+                    : "group-hover:text-[#00f2ff]"
+                )}
+              />
+              <span className={cn("text-sm font-medium", isActive ? "font-semibold text-white" : "")}>
+                {item.name}
+              </span>
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* User Profile Card */}
+      <div className="p-6">
+        <div className="bg-white/[0.03] backdrop-blur-md p-4 rounded-2xl border border-white/10 shadow-lg">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full border-2 border-[#00f2ff] p-0.5 overflow-hidden shrink-0">
+              <img
+                src={user?.image || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name || "Yash"}`}
+                alt="Profile"
+                className="w-full h-full object-cover rounded-full"
+              />
+            </div>
+            <div className="overflow-hidden">
+              <p className="text-xs font-bold text-white truncate">{user?.name || "Yash K."}</p>
+              <p className="text-[10px] text-gray-500 truncate">{user?.email || "Enterprise Plan"}</p>
+            </div>
+          </div>
         </div>
       </div>
-    </>
+    </aside>
   );
 }

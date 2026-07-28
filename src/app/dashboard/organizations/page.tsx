@@ -16,7 +16,7 @@ export default function OrganizationsPage() {
       >
         <button
           type="button"
-          className="inline-flex items-center gap-2 rounded-md bg-indigo-500 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-400"
+          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-[#bc13fe] to-[#00f2ff] px-4 py-2.5 text-sm font-bold text-white shadow-[0_0_18px_rgba(188,19,254,0.3)] transition hover:-translate-y-0.5"
         >
           <Plus className="h-4 w-4" />
           New Organization
