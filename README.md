@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🛡️ Sentinel AI
+# Sentinel AI 🛡️
 
 ### AI-Powered Cyber Threat Intelligence Platform
 
@@ -27,9 +27,9 @@ The project is built as a full-stack Next.js application using Serverless APIs, 
 
 ---
 
-# ✨ Features
+#  Features
 
-## 🔗 URL Security Scanner
+## URL Security Scanner
 
 - AI-powered URL analysis
 - WHOIS inspection
@@ -54,7 +54,7 @@ The project is built as a full-stack Next.js application using Serverless APIs, 
 
 ---
 
-## 🔐 Authentication
+## Authentication
 
 - BetterAuth
 - Email & Password Authentication
@@ -72,7 +72,7 @@ The project is built as a full-stack Next.js application using Serverless APIs, 
 
 ---
 
-# 🧠 AI Powered Analysis
+# AI Powered Analysis
 
 Sentinel AI uses **Google Gemini AI** to generate intelligent security reports including:
 
@@ -84,7 +84,7 @@ Sentinel AI uses **Google Gemini AI** to generate intelligent security reports i
 
 ---
 
-# 🛠️ Tech Stack
+# Tech Stack
 
 ## Frontend
 
@@ -127,7 +127,7 @@ Sentinel AI uses **Google Gemini AI** to generate intelligent security reports i
 
 ---
 
-# ⚙️ Installation
+# Installation
 
 ```bash
 git clone https://github.com/theyashcodes/Sentinel-AI.git
