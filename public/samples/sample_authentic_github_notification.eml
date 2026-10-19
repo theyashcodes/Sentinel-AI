@@ -1,0 +1,23 @@
+From: "GitHub" <notifications@github.com>
+To: developer@example.com
+Subject: [GitHub] A new security advisory has been published
+Date: Tue, 20 Oct 2026 00:22:00 +0000
+Message-ID: <github-sec-adv-202610200022@github.com>
+Return-Path: <bounces@github.com>
+Received: from smtp.github.com (smtp.github.com [192.30.252.204])
+	by mx.google.com with ESMTPS id gh12345
+	for <developer@example.com>;
+	Tue, 20 Oct 2026 00:22:02 +0000 (UTC)
+Authentication-Results: mx.google.com;
+	spf=pass (google.com: domain of notifications@github.com designates 192.30.252.204 as permitted sender) smtp.mailfrom=bounces@github.com;
+	dkim=pass header.d=github.com;
+	dmarc=pass (p=reject) header.from=github.com
+
+Hello,
+
+A security advisory has been published for a repository you follow.
+You can view full details and remediation patches at:
+https://github.com/security/advisories
+
+Regards,
+GitHub Security Operations

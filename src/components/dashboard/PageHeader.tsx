@@ -8,22 +8,51 @@ interface PageHeaderProps {
 
 export function PageHeader({ title, description, children }: PageHeaderProps) {
   return (
-    <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between mb-10">
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "1rem",
+        marginBottom: "2rem",
+        paddingBottom: "1.25rem",
+        borderBottom: "1px solid var(--hair-06)",
+      }}
+      className="sm:flex-row sm:items-end sm:justify-between"
+    >
       <div>
-        <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.22em] text-[#00f2ff]">
-          Sentinel command center
+        <p className="label" style={{ color: "var(--accent)", marginBottom: "0.5rem" }}>
+          Sentinel Command Center
         </p>
-        <h1 className="font-display text-3xl font-bold leading-none tracking-tight text-white sm:text-4xl">
+        <h1
+          style={{
+            fontSize: "clamp(1.75rem, 3vw, 2.25rem)",
+            fontWeight: 300,
+            letterSpacing: "-0.04em",
+            lineHeight: 1.1,
+            color: "var(--ink)",
+            margin: 0,
+          }}
+        >
           {title}
         </h1>
         {description && (
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-gray-400">
+          <p
+            style={{
+              marginTop: "0.5rem",
+              maxWidth: "42rem",
+              fontSize: "13px",
+              fontWeight: 300,
+              lineHeight: 1.6,
+              color: "var(--muted)",
+              margin: 0,
+            }}
+          >
             {description}
           </p>
         )}
       </div>
       {children && (
-        <div className="flex shrink-0">
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexShrink: 0 }}>
           {children}
         </div>
       )}

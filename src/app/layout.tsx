@@ -53,7 +53,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#0a0a0f',
+  themeColor: '#ffffff',
   width: 'device-width',
   initialScale: 1,
 };
@@ -61,7 +61,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${spaceGrotesk.variable} ${inter.variable} min-h-screen antialiased bg-black font-sans`}>
+      <body className={`${spaceGrotesk.variable} ${inter.variable} min-h-screen antialiased font-sans`}>
         <AppProviders>{children}</AppProviders>
       </body>
     </html>

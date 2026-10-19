@@ -61,9 +61,11 @@ export default function SignUpPage() {
           className="bg-[rgba(10,10,10,0.5)] backdrop-blur-xl border border-white/10 p-8 md:p-10 rounded-[32px] shadow-2xl space-y-8"
         >
           {/* Logo / Header */}
-          <div className="text-center space-y-2">
-            <SentinelLogo className="mb-2 h-12 w-12" />
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white title-font uppercase">
+          <div className="text-center space-y-2.5">
+            <div className="flex justify-center">
+              <SentinelLogo className="h-16 w-16 p-2 rounded-2xl shadow-xl border border-white/20" size={52} />
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white title-font uppercase">
               SENTINEL AI
             </h1>
             <p className="text-sm text-gray-400 font-light">

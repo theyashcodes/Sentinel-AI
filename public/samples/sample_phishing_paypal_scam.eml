@@ -1,0 +1,28 @@
+From: "PayPal Security Center" <alert@vps-918-secure.ru>
+To: target-victim@example.com
+Subject: Urgent: Your PayPal Account Has Been Suspended - Action Required Within 24 Hours
+Date: Tue, 20 Oct 2026 00:20:15 +0000
+Message-ID: <20261020002015.849204@attacker-bulletproof.xyz>
+Return-Path: <bounce@attacker-bulletproof.xyz>
+Reply-To: phish-collector@scam-mail.ru
+Received: from mail.attacker-bulletproof.xyz (mail.attacker-bulletproof.xyz [185.220.101.5])
+	by mx.google.com with ESMTPS id abc123xyz
+	for <target-victim@example.com>;
+	Tue, 20 Oct 2026 00:20:18 +0000 (UTC)
+Authentication-Results: mx.google.com;
+	spf=fail (google.com: domain of alert@vps-918-secure.ru does not designate 185.220.101.5 as permitted sender) smtp.mailfrom=bounce@attacker-bulletproof.xyz;
+	dkim=fail;
+	dmarc=fail (p=reject action=none) header.from=paypal.com
+
+Dear Customer,
+
+We have detected suspicious activity and unauthorized login attempts on your PayPal account.
+Your account is temporarily suspended to protect your financial credentials.
+
+Immediate action is required! You must verify your identity within 24 hours to prevent permanent account termination.
+
+Click here to restore your account now:
+http://185.220.101.5/paypal-login/verify-identity.php
+
+Thank you,
+PayPal Fraud & Risk Operations

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface Particle {
   x: number;
@@ -32,8 +32,21 @@ function buildPalette(): string[] {
 
 export function QuantumFluxBackground() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [enabled, setEnabled] = useState(true);
 
   useEffect(() => {
+    try {
+      const saved = localStorage.getItem("sentinel_particle_animation");
+      if (saved === "false") {
+        setEnabled(false);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!enabled) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -145,7 +158,19 @@ export function QuantumFluxBackground() {
       window.removeEventListener("resize",    onResize);
       cancelAnimationFrame(raf);
     };
-  }, []);
+  }, [enabled]);
+
+  if (!enabled) {
+    return (
+      <div
+        className="fixed inset-0 z-0 bg-black pointer-events-none"
+        style={{
+          backgroundImage: "radial-gradient(rgba(255,255,255,0.06) 1.2px, transparent 1.2px)",
+          backgroundSize: "24px 24px",
+        }}
+      />
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-0 bg-black pointer-events-none">
