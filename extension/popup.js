@@ -4,7 +4,6 @@ const API_URL = "http://localhost:3000/api/extension/scan";
 document.addEventListener("DOMContentLoaded", async () => {
   const contentEl = document.getElementById("content");
   const alarmSoundToggle = document.getElementById("alarmSoundToggle");
-  const testAlarmBtn = document.getElementById("testAlarmBtn");
 
   // Load alarm sound preference
   if (alarmSoundToggle && chrome.storage?.local) {
@@ -14,21 +13,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     alarmSoundToggle.addEventListener("change", () => {
       chrome.storage.local.set({ alarmSoundEnabled: alarmSoundToggle.checked });
-    });
-  }
-
-  // Handle test alarm siren button
-  if (testAlarmBtn) {
-    testAlarmBtn.addEventListener("click", () => {
-      testAlarmBtn.textContent = "⚡ Playing Alert Siren...";
-      testAlarmBtn.style.opacity = "0.7";
-
-      chrome.runtime.sendMessage({ action: "TEST_ALARM_SOUND" }, (res) => {
-        setTimeout(() => {
-          testAlarmBtn.textContent = "🔊 Test Threat Alarm Sound / अलार्म टेस्ट करें";
-          testAlarmBtn.style.opacity = "1";
-        }, 1500);
-      });
     });
   }
 
@@ -75,6 +59,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     const data = await res.json();
     renderResult(contentEl, data, currentUrl);
+
+    // Auto-trigger alarm siren if critical threat
+    if (data.riskScore >= 90 || data.verdict === "MALICIOUS") {
+      chrome.runtime.sendMessage({ action: "TRIGGER_ALARM" }).catch(() => {});
+    }
   } catch (err) {
     contentEl.innerHTML = `
       <div class="card" style="border-color: rgba(239, 68, 68, 0.3);">

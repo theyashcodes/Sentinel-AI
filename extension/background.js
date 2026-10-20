@@ -1,6 +1,8 @@
 // Sentinel AI • Background Service Worker (Manifest V3)
 const API_URL = "http://localhost:3000/api/extension/scan";
 const scanCache = new Map();
+let lastAlarmTimestamp = 0;
+let creatingOffscreenDoc = null;
 
 // Helper to set badge
 function updateBadge(tabId, verdict, score) {
@@ -18,6 +20,49 @@ function updateBadge(tabId, verdict, score) {
   }
 }
 
+// Ensure offscreen document exists for background audio playback
+async function ensureOffscreenDocument() {
+  const offscreenUrl = chrome.runtime.getURL("offscreen.html");
+  if (await chrome.offscreen.hasDocument()) {
+    return;
+  }
+  if (creatingOffscreenDoc) {
+    await creatingOffscreenDoc;
+    return;
+  }
+  creatingOffscreenDoc = chrome.offscreen.createDocument({
+    url: offscreenUrl,
+    reasons: ["AUDIO_PLAYBACK"],
+    justification: "Synthesize critical threat siren alarm for dangerous phishing sites",
+  });
+  await creatingOffscreenDoc;
+  creatingOffscreenDoc = null;
+}
+
+// Play threat alarm siren via offscreen audio engine (works even if site timed out or errored)
+async function playThreatAlarmSound() {
+  const now = Date.now();
+  // 3-second cooldown to prevent overlapping audio loops
+  if (now - lastAlarmTimestamp < 3000) {
+    return;
+  }
+  lastAlarmTimestamp = now;
+
+  try {
+    const prefs = await chrome.storage.local.get({ alarmSoundEnabled: true });
+    if (!prefs.alarmSoundEnabled) return;
+
+    await ensureOffscreenDocument();
+
+    chrome.runtime.sendMessage({
+      target: "offscreen",
+      action: "PLAY_THREAT_ALARM",
+    }).catch(() => {});
+  } catch (err) {
+    console.warn("[Sentinel Audio Player]", err);
+  }
+}
+
 // Perform scan on tab URL
 async function scanTab(tabId, url) {
   if (!url || !url.startsWith("http")) {
@@ -25,10 +70,13 @@ async function scanTab(tabId, url) {
     return;
   }
 
-  // Check cache (valid for 10 minutes)
+  // Check cache (valid for 5 minutes)
   const cached = scanCache.get(url);
-  if (cached && Date.now() - cached.timestamp < 10 * 60 * 1000) {
+  if (cached && Date.now() - cached.timestamp < 5 * 60 * 1000) {
     updateBadge(tabId, cached.data.verdict, cached.data.riskScore);
+    if (cached.data.riskScore >= 90 || cached.data.verdict === "MALICIOUS") {
+      playThreatAlarmSound();
+    }
     return;
   }
 
@@ -46,7 +94,7 @@ async function scanTab(tabId, url) {
 
     updateBadge(tabId, data.verdict, data.riskScore);
 
-    // If critical threat, trigger desktop notification and high-risk alarm
+    // If critical threat (90+ risk score or brand spoofing)
     if (data.verdict === "MALICIOUS" || data.riskScore >= 90 || (data.impersonation && data.impersonation.detected)) {
       const brandMsg = data.impersonation?.targetBrand
         ? `Brand spoofing target: ${data.impersonation.targetBrand}.`
@@ -56,20 +104,21 @@ async function scanTab(tabId, url) {
         type: "basic",
         iconUrl: "icons/icon-128.png",
         title: "⚠️ Sentinel AI • Phishing Threat Blocked",
-        message: `High risk threat detected on ${data.domain}! Risk: ${data.riskScore}/100. ${brandMsg}`,
+        message: `Critical threat on ${data.domain}! Risk: ${data.riskScore}/100. ${brandMsg}`,
         priority: 2,
       });
 
-      // Play Alert Siren Sound and Inject Warning HUD on 90+ threat score
+      // Play background emergency alarm siren immediately
       if (data.riskScore >= 90 || data.verdict === "MALICIOUS") {
-        chrome.storage.local.get({ alarmSoundEnabled: true }, (prefs) => {
-          if (prefs.alarmSoundEnabled) {
-            chrome.scripting.executeScript({
-              target: { tabId },
-              func: triggerThreatAudioAndHUD,
-              args: [data.riskScore, data.domain, data.impersonation?.targetBrand || null],
-            }).catch((e) => console.warn("[Sentinel] Could not inject alarm into tab:", e));
-          }
+        playThreatAlarmSound();
+
+        // Also attempt to inject visual warning HUD into page if accessible
+        chrome.scripting.executeScript({
+          target: { tabId },
+          func: injectVisualThreatHUD,
+          args: [data.riskScore, data.domain, data.impersonation?.targetBrand || null],
+        }).catch(() => {
+          // Ignore if page is internal error or unreachable
         });
       }
     }
@@ -78,45 +127,8 @@ async function scanTab(tabId, url) {
   }
 }
 
-// Function injected into webpage tab to play cyber threat siren and display HUD banner
-function triggerThreatAudioAndHUD(riskScore, domain, targetBrand) {
-  // 1. Play Urgent Cyber Security Siren using Web Audio API
-  try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (AudioCtx) {
-      const ctx = new AudioCtx();
-
-      const playAlertBeep = (freq, start, duration) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = "sawtooth";
-        osc.frequency.setValueAtTime(freq, ctx.currentTime + start);
-        osc.frequency.linearRampToValueAtTime(freq * 0.7, ctx.currentTime + start + duration);
-
-        gain.gain.setValueAtTime(0.22, ctx.currentTime + start);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + duration);
-
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(ctx.currentTime + start);
-        osc.stop(ctx.currentTime + start + duration);
-      };
-
-      // 4-pulse rapid emergency alarm siren
-      playAlertBeep(960, 0.0, 0.16);
-      playAlertBeep(720, 0.18, 0.16);
-      playAlertBeep(960, 0.36, 0.16);
-      playAlertBeep(720, 0.54, 0.22);
-
-      setTimeout(() => {
-        ctx.close().catch(() => {});
-      }, 1200);
-    }
-  } catch (err) {
-    console.warn("[Sentinel AI] Audio playback prevented:", err);
-  }
-
-  // 2. Inject Visual Warning Banner HUD into the page
+// Function injected into accessible webpage tab to display warning HUD banner
+function injectVisualThreatHUD(riskScore, domain, targetBrand) {
   if (document.getElementById("sentinel-threat-hud")) return;
 
   const hud = document.createElement("div");
@@ -177,37 +189,28 @@ function triggerThreatAudioAndHUD(riskScore, domain, targetBrand) {
   });
 }
 
-// Listen for test alarm messages from extension popup
+// Listen for messages from popup or elsewhere
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === "TEST_ALARM_SOUND") {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs && tabs[0]?.id) {
-        chrome.scripting.executeScript({
-          target: { tabId: tabs[0].id },
-          func: triggerThreatAudioAndHUD,
-          args: [95, "suspicious-phish-portal.xyz", "PayPal Impersonation"],
-        }).catch((e) => console.warn("[Sentinel] Test alarm script error:", e));
-        sendResponse({ success: true });
-      } else {
-        sendResponse({ success: false, error: "No active tab found" });
-      }
-    });
+  if (message.action === "TRIGGER_ALARM") {
+    playThreatAlarmSound();
+    sendResponse({ success: true });
     return true;
   }
 });
 
-// Listen for tab navigation updates
+// Scan tabs as soon as navigation begins or completes
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status === "complete" && tab.url) {
-    scanTab(tabId, tab.url);
+  const targetUrl = changeInfo.url || tab.url;
+  if (targetUrl && targetUrl.startsWith("http")) {
+    scanTab(tabId, targetUrl);
   }
 });
 
-// Listen for tab switches
+// Scan active tab when user switches tabs
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
   try {
     const tab = await chrome.tabs.get(activeInfo.tabId);
-    if (tab && tab.url) {
+    if (tab && tab.url && tab.url.startsWith("http")) {
       scanTab(tab.id, tab.url);
     }
   } catch {
