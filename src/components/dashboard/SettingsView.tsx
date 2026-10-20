@@ -15,7 +15,9 @@ import {
   Cpu,
   RefreshCw,
   Lock,
+  Smile,
 } from "lucide-react";
+import { CyBroAvatar, CYBRO_SKINS, CyBroSkin } from "@/components/cybro/CyBroAvatar";
 
 export function SettingsView() {
   const { theme, setTheme, resolvedTheme } = useTheme();
@@ -28,6 +30,7 @@ export function SettingsView() {
   const [soundAlerts, setSoundAlerts] = useState(false);
   const [sensitivity, setSensitivity] = useState<"standard" | "high" | "paranoid">("high");
   const [showCyBro, setShowCyBro] = useState(true);
+  const [selectedSkin, setSelectedSkin] = useState<CyBroSkin>("classic");
   const [particlesEnabled, setParticlesEnabled] = useState(true);
 
   useEffect(() => {
@@ -41,10 +44,26 @@ export function SettingsView() {
       if (savedParticles === "false") {
         setParticlesEnabled(false);
       }
+      const savedSkin = localStorage.getItem("sentinel_cybro_skin") as CyBroSkin;
+      if (savedSkin && CYBRO_SKINS.some((s) => s.id === savedSkin)) {
+        setSelectedSkin(savedSkin);
+      }
     } catch {
       // ignore
     }
   }, []);
+
+  const handleSelectSkin = (skinId: CyBroSkin) => {
+    setSelectedSkin(skinId);
+    try {
+      localStorage.setItem("sentinel_cybro_skin", skinId);
+      window.dispatchEvent(new CustomEvent("sentinel_cybro_skin_change", { detail: skinId }));
+    } catch {
+      // ignore
+    }
+    setSaveSuccess(true);
+    setTimeout(() => setSaveSuccess(false), 2400);
+  };
 
   const handleToggleParticles = () => {
     const nextVal = !particlesEnabled;
@@ -672,6 +691,181 @@ export function SettingsView() {
                 }}
               />
             </button>
+          </div>
+
+          {/* ── Sub-Section: CyBro Avatar Persona & Skins (6 Variants) ── */}
+          <div
+            id="cybro-persona-skins"
+            style={{
+              paddingTop: "1.25rem",
+              paddingBottom: "1.25rem",
+              borderBottom: "1px solid var(--hair-06)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "1rem",
+            }}
+          >
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <Smile style={{ width: "15px", height: "15px", color: "var(--accent)" }} />
+                <h3 style={{ fontSize: "13px", fontWeight: 500, color: "var(--ink)", margin: 0 }}>
+                  CyBro Avatar Personas & Chassis Skins (6 Custom Faces)
+                </h3>
+                <span
+                  style={{
+                    fontSize: "9px",
+                    fontWeight: 600,
+                    backgroundColor: "rgba(56, 189, 248, 0.15)",
+                    color: "#38BDF8",
+                    border: "1px solid rgba(56, 189, 248, 0.3)",
+                    padding: "1px 6px",
+                    borderRadius: "10px",
+                  }}
+                >
+                  REAL-TIME SYNC
+                </span>
+              </div>
+              <p style={{ fontSize: "12px", color: "var(--muted)", margin: "0.35rem 0 0 0" }}>
+                Select your AI companion's visual chassis and personality. Equipping a skin updates the floating avatar and assistant everywhere across the dashboard!
+              </p>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
+                gap: "0.85rem",
+              }}
+            >
+              {CYBRO_SKINS.map((skin) => {
+                const isSelected = selectedSkin === skin.id;
+                return (
+                  <div
+                    key={skin.id}
+                    onClick={() => handleSelectSkin(skin.id)}
+                    style={{
+                      padding: "1rem",
+                      borderRadius: "12px",
+                      backgroundColor: isSelected ? "var(--accent-subtle)" : "var(--ground-secondary)",
+                      border: isSelected
+                        ? `1.5px solid ${skin.accent}`
+                        : "1px solid var(--hair-10)",
+                      boxShadow: isSelected ? `0 4px 18px ${skin.accent}25` : "none",
+                      cursor: "pointer",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.85rem",
+                      transition: "all 0.2s ease",
+                      position: "relative",
+                      overflow: "hidden",
+                    }}
+                    onMouseOver={(e) => {
+                      if (!isSelected) {
+                        (e.currentTarget as HTMLElement).style.borderColor = "var(--hair-20)";
+                        (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)";
+                      }
+                    }}
+                    onMouseOut={(e) => {
+                      if (!isSelected) {
+                        (e.currentTarget as HTMLElement).style.borderColor = "var(--hair-10)";
+                        (e.currentTarget as HTMLElement).style.transform = "translateY(0)";
+                      }
+                    }}
+                  >
+                    {/* Top Row: Mini Avatar + Tag */}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <div
+                        style={{
+                          width: "58px",
+                          height: "58px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: "#030712",
+                          borderRadius: "14px",
+                          border: `1px solid ${skin.accent}40`,
+                        }}
+                      >
+                        <CyBroAvatar size={46} skin={skin.id} mood={isSelected ? "happy" : "idle"} />
+                      </div>
+
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px" }}>
+                        <span
+                          style={{
+                            fontSize: "9px",
+                            fontWeight: 700,
+                            letterSpacing: "0.05em",
+                            padding: "2px 7px",
+                            borderRadius: "6px",
+                            backgroundColor: `${skin.accent}15`,
+                            color: skin.accent,
+                            border: `1px solid ${skin.accent}40`,
+                          }}
+                        >
+                          {skin.tag}
+                        </span>
+
+                        {isSelected && (
+                          <span
+                            style={{
+                              fontSize: "10px",
+                              fontWeight: 600,
+                              color: "var(--ok)",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "3px",
+                            }}
+                          >
+                            <Check style={{ width: "12px", height: "12px" }} /> Equipped
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Info */}
+                    <div>
+                      <h4 style={{ fontSize: "13.5px", fontWeight: 600, color: "var(--ink)", margin: 0 }}>
+                        {skin.name}
+                      </h4>
+                      <p style={{ fontSize: "11.5px", color: "var(--muted)", margin: "0.25rem 0 0 0", lineHeight: 1.4 }}>
+                        {skin.desc}
+                      </p>
+                    </div>
+
+                    {/* Bottom action indicator */}
+                    <div
+                      style={{
+                        marginTop: "auto",
+                        paddingTop: "0.5rem",
+                        borderTop: "1px solid var(--hair-06)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        fontSize: "11px",
+                      }}
+                    >
+                      <span style={{ color: isSelected ? skin.accent : "var(--muted)", fontWeight: 500 }}>
+                        {isSelected ? "Currently Active" : "Click to Equip"}
+                      </span>
+                      <div
+                        style={{
+                          width: "14px",
+                          height: "14px",
+                          borderRadius: "50%",
+                          border: isSelected ? `2px solid ${skin.accent}` : "1.5px solid var(--hair-20)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: isSelected ? skin.accent : "transparent",
+                        }}
+                      >
+                        {isSelected && <div style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#FFFFFF" }} />}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           {/* Sensitivity options */}
