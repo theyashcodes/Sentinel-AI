@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { X, Send, Sparkles, ShieldAlert, CheckCircle2 } from "lucide-react";
+import { X, Send, Sparkles, ShieldAlert, CheckCircle2, RotateCcw } from "lucide-react";
 import { CyBroAvatar, CyBroMood } from "./CyBroAvatar";
 import { ScanEventDetail } from "@/lib/cybro/events";
+import { authClient } from "@/lib/auth-client";
 
 interface Message {
   id: string;
@@ -14,6 +15,20 @@ interface Message {
   suggestions?: string[];
   timestamp: string;
 }
+
+const DEFAULT_WELCOME_MESSAGE: Message = {
+  id: "initial-welcome",
+  sender: "cybro",
+  text: "Yo! I'm **CyBro** — your street-smart Sentinel AI cyber companion! 🤖⚡\n\nI monitor your dashboard scans in real time. Drop any suspicious link, SMS, or email, or run a scan in any tool (Redirect Tracer, AI Media Forensics, or Email Dissector) — I'll analyze the output and give you the optimal safe action!",
+  mood: "smug",
+  suggestions: [
+    "How does Redirect Tracer detect homoglyphs?",
+    "How does AI Media Forensics detect deepfakes?",
+    "Check this link: https://раypal.com/login",
+    "Check safe link: https://google.com",
+  ],
+  timestamp: "Online",
+};
 
 const ENGLISH_HOOKS = [
   "Got a shady link? Let me inspect it 🛡️",
@@ -27,6 +42,9 @@ const ENGLISH_HOOKS = [
 ];
 
 export function CyBroWidget() {
+  const { data: session } = authClient.useSession();
+  const userId = session?.user?.id || "guest";
+
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -35,6 +53,59 @@ export function CyBroWidget() {
   const [hookIndex, setHookIndex] = useState(0);
   const [liveScanAlert, setLiveScanAlert] = useState<string | null>(null);
   const [hasUnreadAlert, setHasUnreadAlert] = useState(false);
+
+  const [messages, setMessages] = useState<Message[]>([DEFAULT_WELCOME_MESSAGE]);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+
+  // 0. Load user-specific chat history from localStorage
+  useEffect(() => {
+    try {
+      const storageKey = `sentinel_cybro_chat_${userId}`;
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setMessages(parsed);
+          setHistoryLoaded(true);
+          return;
+        }
+      }
+      setMessages([DEFAULT_WELCOME_MESSAGE]);
+    } catch {
+      setMessages([DEFAULT_WELCOME_MESSAGE]);
+    } finally {
+      setHistoryLoaded(true);
+    }
+  }, [userId]);
+
+  // Save chat history to localStorage whenever messages update (per user)
+  useEffect(() => {
+    if (!historyLoaded) return;
+    try {
+      const storageKey = `sentinel_cybro_chat_${userId}`;
+      localStorage.setItem(storageKey, JSON.stringify(messages));
+    } catch (e) {
+      console.warn("Could not save CyBro chat history", e);
+    }
+  }, [messages, userId, historyLoaded]);
+
+  const handleClearHistory = () => {
+    if (typeof window !== "undefined" && window.confirm("Reset CyBro chat history?")) {
+      const fresh = [
+        {
+          ...DEFAULT_WELCOME_MESSAGE,
+          id: `initial-${Date.now()}`,
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        },
+      ];
+      setMessages(fresh);
+      try {
+        localStorage.removeItem(`sentinel_cybro_chat_${userId}`);
+      } catch {
+        // ignore
+      }
+    }
+  };
 
   // 1. Check & listen to CyBro visibility preference (Settings page toggle)
   useEffect(() => {
@@ -121,22 +192,6 @@ export function CyBroWidget() {
       window.removeEventListener("sentinel_scan_completed", handleScanComplete);
     };
   }, []);
-
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "initial-1",
-      sender: "cybro",
-      text: "Yo! I'm **CyBro** — your street-smart Sentinel AI cyber companion! 🤖⚡\n\nI monitor your dashboard scans in real time. Drop any suspicious link, SMS, or email, or run a scan in any tool (Redirect Tracer, AI Media Forensics, or Email Dissector) — I'll analyze the output and give you the optimal safe action!",
-      mood: "smug",
-      suggestions: [
-        "How does Redirect Tracer detect homoglyphs?",
-        "How does AI Media Forensics detect deepfakes?",
-        "Check this link: https://раypal.com/login",
-        "Check safe link: https://google.com",
-      ],
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-    },
-  ]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -434,26 +489,70 @@ export function CyBroWidget() {
               </div>
             </div>
 
-            {/* Close button */}
-            <button
-              type="button"
-              onClick={() => setIsOpen(false)}
-              style={{
-                width: "28px",
-                height: "28px",
-                padding: 0,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: "50%",
-                background: "transparent",
-                color: "#94A3B8",
-                border: "none",
-                cursor: "pointer",
-              }}
-            >
-              <X style={{ width: "16px", height: "16px" }} />
-            </button>
+            {/* Header Actions: Reset chat & Close */}
+            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              <button
+                type="button"
+                onClick={handleClearHistory}
+                title="Reset Chat History"
+                aria-label="Reset Chat History"
+                style={{
+                  width: "28px",
+                  height: "28px",
+                  padding: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: "50%",
+                  background: "transparent",
+                  color: "#94A3B8",
+                  border: "none",
+                  cursor: "pointer",
+                  transition: "all 0.15s ease",
+                }}
+                onMouseOver={(e) => {
+                  (e.currentTarget as HTMLElement).style.color = "#EF4444";
+                  (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(239, 68, 68, 0.12)";
+                }}
+                onMouseOut={(e) => {
+                  (e.currentTarget as HTMLElement).style.color = "#94A3B8";
+                  (e.currentTarget as HTMLElement).style.backgroundColor = "transparent";
+                }}
+              >
+                <RotateCcw style={{ width: "14px", height: "14px" }} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsOpen(false)}
+                title="Close"
+                aria-label="Close CyBro Assistant"
+                style={{
+                  width: "28px",
+                  height: "28px",
+                  padding: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: "50%",
+                  background: "transparent",
+                  color: "#94A3B8",
+                  border: "none",
+                  cursor: "pointer",
+                  transition: "all 0.15s ease",
+                }}
+                onMouseOver={(e) => {
+                  (e.currentTarget as HTMLElement).style.color = "#FFFFFF";
+                  (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255, 255, 255, 0.08)";
+                }}
+                onMouseOut={(e) => {
+                  (e.currentTarget as HTMLElement).style.color = "#94A3B8";
+                  (e.currentTarget as HTMLElement).style.backgroundColor = "transparent";
+                }}
+              >
+                <X style={{ width: "16px", height: "16px" }} />
+              </button>
+            </div>
           </div>
 
           {/* Messages Stream */}
