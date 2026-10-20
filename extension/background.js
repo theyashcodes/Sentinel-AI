@@ -2,7 +2,6 @@
 const API_URL = "http://localhost:3000/api/extension/scan";
 const scanCache = new Map();
 let lastAlarmTimestamp = 0;
-let creatingOffscreenDoc = null;
 
 // Helper to set badge
 function updateBadge(tabId, verdict, score) {
@@ -20,11 +19,11 @@ function updateBadge(tabId, verdict, score) {
   }
 }
 
-// Ensure offscreen document exists for background audio playback
+// Play threat alarm siren via offscreen audio engine (works in background on any tab)
 async function playThreatAlarmSound() {
   const now = Date.now();
-  // 2.5-second cooldown to prevent overlapping audio loops
-  if (now - lastAlarmTimestamp < 2500) {
+  // 2-second cooldown to prevent overlapping audio loops
+  if (now - lastAlarmTimestamp < 2000) {
     return;
   }
   lastAlarmTimestamp = now;
@@ -36,7 +35,7 @@ async function playThreatAlarmSound() {
     const hasDoc = await chrome.offscreen.hasDocument();
     if (!hasDoc) {
       await chrome.offscreen.createDocument({
-        url: `offscreen.html?play=1&t=${Date.now()}`,
+        url: "offscreen.html",
         reasons: ["AUDIO_PLAYBACK"],
         justification: "Synthesize critical threat siren alarm for dangerous phishing sites",
       });
@@ -47,7 +46,7 @@ async function playThreatAlarmSound() {
       }).catch(() => {});
     }
   } catch (err) {
-    console.warn("[Sentinel Audio Player]", err);
+    console.warn("[Sentinel Background Audio]", err);
   }
 }
 
@@ -98,9 +97,10 @@ async function scanTab(tabId, url) {
 
       // Play background emergency alarm siren immediately
       if (data.riskScore >= 90 || data.verdict === "MALICIOUS") {
+        // 1. Play background offscreen audio
         playThreatAlarmSound();
 
-        // Also attempt to inject visual warning HUD into page if accessible
+        // 2. Also inject in-tab audio & visual warning HUD into page
         chrome.scripting.executeScript({
           target: { tabId },
           func: injectVisualThreatHUD,
@@ -115,8 +115,16 @@ async function scanTab(tabId, url) {
   }
 }
 
-// Function injected into accessible webpage tab to display warning HUD banner
+// Function injected into accessible webpage tab to display warning HUD banner and play audio
 function injectVisualThreatHUD(riskScore, domain, targetBrand) {
+  // 1. In-tab audio playback
+  try {
+    const audio = new Audio(chrome.runtime.getURL("alarm.wav"));
+    audio.volume = 1.0;
+    audio.play().catch(() => {});
+  } catch (e) {}
+
+  // 2. Warning banner HUD
   if (document.getElementById("sentinel-threat-hud")) return;
 
   const hud = document.createElement("div");

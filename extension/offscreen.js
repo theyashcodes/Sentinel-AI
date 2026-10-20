@@ -3,18 +3,26 @@
 
 function playEmergencySiren() {
   try {
-    const audio = document.getElementById("alarmAudio") || new Audio(chrome.runtime.getURL("alarm.wav"));
-    audio.currentTime = 0;
+    const audio = new Audio("alarm.wav");
     audio.volume = 1.0;
-    
+
     audio.play()
       .then(() => {
-        console.log("[Sentinel] Emergency threat alarm audio playing successfully.");
+        console.log("[Sentinel] Emergency threat alarm playing in offscreen document.");
       })
       .catch((err) => {
         console.warn("[Sentinel] HTML audio element failed, fallback to Web Audio:", err);
         fallbackWebAudio();
       });
+
+    // Close offscreen document when audio finishes so next alert creates fresh document
+    audio.onended = () => {
+      try { window.close(); } catch (e) {}
+    };
+
+    setTimeout(() => {
+      try { window.close(); } catch (e) {}
+    }, 2200);
   } catch (err) {
     fallbackWebAudio();
   }
@@ -32,7 +40,7 @@ function fallbackWebAudio() {
     osc.type = "sawtooth";
     osc.frequency.setValueAtTime(960, ctx.currentTime);
     osc.frequency.linearRampToValueAtTime(600, ctx.currentTime + 0.4);
-    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.setValueAtTime(0.35, ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
     osc.connect(gain);
     gain.connect(ctx.destination);
@@ -41,13 +49,10 @@ function fallbackWebAudio() {
   } catch (e) {}
 }
 
-// 1. If document was opened with ?play=1, play immediately upon load!
-const params = new URLSearchParams(window.location.search);
-if (params.get("play") === "1") {
-  playEmergencySiren();
-}
+// 1. Immediately play on document load
+playEmergencySiren();
 
-// 2. Listen for runtime messages if document is already active
+// 2. Also listen for runtime messages if document is already active
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.target === "offscreen" && message.action === "PLAY_THREAT_ALARM") {
     playEmergencySiren();
