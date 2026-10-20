@@ -1,7 +1,31 @@
 // Sentinel AI • Background Service Worker (Manifest V3)
-const API_URL = "http://localhost:3000/api/extension/scan";
+const PROD_API_URL = "https://sentinel-ai-omega-two.vercel.app/api/extension/scan";
+const LOCAL_API_URL = "http://localhost:3000/api/extension/scan";
 const scanCache = new Map();
 let lastAlarmTimestamp = 0;
+let cachedApiUrl = null;
+
+// Determine active API endpoint (auto-detects local dev vs 24/7 cloud server)
+async function getApiEndpoint() {
+  if (cachedApiUrl) return cachedApiUrl;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 450);
+    const check = await fetch(LOCAL_API_URL, {
+      method: "OPTIONS",
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (check.ok) {
+      cachedApiUrl = LOCAL_API_URL;
+      return cachedApiUrl;
+    }
+  } catch (e) {
+    // Localhost offline (e.g. friend's laptop)
+  }
+  cachedApiUrl = PROD_API_URL;
+  return cachedApiUrl;
+}
 
 // Helper to set badge
 function updateBadge(tabId, verdict, score) {
@@ -68,11 +92,24 @@ async function scanTab(tabId, url) {
   }
 
   try {
-    const res = await fetch(API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url }),
-    });
+    let endpoint = await getApiEndpoint();
+    let res;
+    try {
+      res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+    } catch (netErr) {
+      // If local dev failed, seamlessly fallback to live cloud server
+      endpoint = PROD_API_URL;
+      cachedApiUrl = PROD_API_URL;
+      res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+    }
 
     if (!res.ok) return;
 

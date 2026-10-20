@@ -1,5 +1,28 @@
 // Sentinel AI • Popup Controller
-const API_URL = "http://localhost:3000/api/extension/scan";
+const PROD_BASE_URL = "https://sentinel-ai-omega-two.vercel.app";
+const LOCAL_BASE_URL = "http://localhost:3000";
+let activeBaseUrl = PROD_BASE_URL;
+
+// Auto-detect whether local development server or 24/7 cloud server should be used
+async function resolveServerBase() {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 450);
+    const check = await fetch(`${LOCAL_BASE_URL}/api/extension/scan`, {
+      method: "OPTIONS",
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (check.ok) {
+      activeBaseUrl = LOCAL_BASE_URL;
+      return activeBaseUrl;
+    }
+  } catch (e) {
+    // Localhost offline (friend's laptop, remote browser)
+  }
+  activeBaseUrl = PROD_BASE_URL;
+  return activeBaseUrl;
+}
 
 document.addEventListener("DOMContentLoaded", async () => {
   const contentEl = document.getElementById("content");
@@ -46,19 +69,31 @@ document.addEventListener("DOMContentLoaded", async () => {
       return;
     }
 
-    // Call Sentinel AI scanner endpoint
-    const res = await fetch(API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: currentUrl }),
-    });
+    // Resolve server endpoint (cloud vs local)
+    const base = await resolveServerBase();
+    let res;
+    try {
+      res = await fetch(`${base}/api/extension/scan`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: currentUrl }),
+      });
+    } catch (netErr) {
+      // If local dev failed, fallback to live cloud server
+      activeBaseUrl = PROD_BASE_URL;
+      res = await fetch(`${PROD_BASE_URL}/api/extension/scan`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: currentUrl }),
+      });
+    }
 
     if (!res.ok) {
       throw new Error(`Sentinel API returned HTTP ${res.status}`);
     }
 
     const data = await res.json();
-    renderResult(contentEl, data, currentUrl);
+    renderResult(contentEl, data, currentUrl, activeBaseUrl);
 
     // Auto-trigger alarm siren if critical threat (90+)
     if (data.riskScore >= 90 || data.verdict === "MALICIOUS") {
@@ -83,17 +118,17 @@ document.addEventListener("DOMContentLoaded", async () => {
           Sentinel AI Server Offline
         </div>
         <div style="font-size: 11px; color: #94A3B8; line-height: 1.4;">
-          Ensure Sentinel AI is running on <code style="color: #3B82F6;">http://localhost:3000</code>.
+          Could not connect to Cloud or Localhost backend. Please check internet connection.
         </div>
-        <a href="http://localhost:3000/dashboard" target="_blank" class="btn" style="margin-top: 12px;">
-          Open Sentinel Dashboard
+        <a href="${PROD_BASE_URL}/dashboard" target="_blank" class="btn" style="margin-top: 12px;">
+          Open Sentinel Cloud Dashboard
         </a>
       </div>
     `;
   }
 });
 
-function renderResult(container, data, fullUrl) {
+function renderResult(container, data, fullUrl, baseUrl) {
   const isMalicious = data.verdict === "MALICIOUS";
   const isSuspicious = data.verdict === "SUSPICIOUS";
 
@@ -155,11 +190,11 @@ function renderResult(container, data, fullUrl) {
       ${threatItems}
     </div>
 
-    <a href="http://localhost:3000/dashboard/tracer" target="_blank" class="btn">
+    <a href="${baseUrl}/dashboard/tracer" target="_blank" class="btn">
       Trace Redirects & Hop Chain
     </a>
 
-    <a href="http://localhost:3000/dashboard/scanner/url" target="_blank" class="btn btn-secondary">
+    <a href="${baseUrl}/dashboard/scanner/url" target="_blank" class="btn btn-secondary">
       Launch Deep ML Forensic Audit
     </a>
   `;
