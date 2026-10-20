@@ -60,8 +60,20 @@ document.addEventListener("DOMContentLoaded", async () => {
     const data = await res.json();
     renderResult(contentEl, data, currentUrl);
 
-    // Auto-trigger alarm siren if critical threat
+    // Auto-trigger alarm siren if critical threat (90+)
     if (data.riskScore >= 90 || data.verdict === "MALICIOUS") {
+      // 1. Play directly inside popup (guaranteed user gesture execution)
+      chrome.storage.local.get({ alarmSoundEnabled: true }, (prefs) => {
+        if (prefs.alarmSoundEnabled) {
+          try {
+            const popupAudio = new Audio(chrome.runtime.getURL("alarm.wav"));
+            popupAudio.volume = 1.0;
+            popupAudio.play().catch((e) => console.warn("[Sentinel Popup Audio]", e));
+          } catch (e) {}
+        }
+      });
+
+      // 2. Also signal background service worker
       chrome.runtime.sendMessage({ action: "TRIGGER_ALARM" }).catch(() => {});
     }
   } catch (err) {

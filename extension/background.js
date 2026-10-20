@@ -21,29 +21,10 @@ function updateBadge(tabId, verdict, score) {
 }
 
 // Ensure offscreen document exists for background audio playback
-async function ensureOffscreenDocument() {
-  const offscreenUrl = chrome.runtime.getURL("offscreen.html");
-  if (await chrome.offscreen.hasDocument()) {
-    return;
-  }
-  if (creatingOffscreenDoc) {
-    await creatingOffscreenDoc;
-    return;
-  }
-  creatingOffscreenDoc = chrome.offscreen.createDocument({
-    url: offscreenUrl,
-    reasons: ["AUDIO_PLAYBACK"],
-    justification: "Synthesize critical threat siren alarm for dangerous phishing sites",
-  });
-  await creatingOffscreenDoc;
-  creatingOffscreenDoc = null;
-}
-
-// Play threat alarm siren via offscreen audio engine (works even if site timed out or errored)
 async function playThreatAlarmSound() {
   const now = Date.now();
-  // 3-second cooldown to prevent overlapping audio loops
-  if (now - lastAlarmTimestamp < 3000) {
+  // 2.5-second cooldown to prevent overlapping audio loops
+  if (now - lastAlarmTimestamp < 2500) {
     return;
   }
   lastAlarmTimestamp = now;
@@ -52,12 +33,19 @@ async function playThreatAlarmSound() {
     const prefs = await chrome.storage.local.get({ alarmSoundEnabled: true });
     if (!prefs.alarmSoundEnabled) return;
 
-    await ensureOffscreenDocument();
-
-    chrome.runtime.sendMessage({
-      target: "offscreen",
-      action: "PLAY_THREAT_ALARM",
-    }).catch(() => {});
+    const hasDoc = await chrome.offscreen.hasDocument();
+    if (!hasDoc) {
+      await chrome.offscreen.createDocument({
+        url: `offscreen.html?play=1&t=${Date.now()}`,
+        reasons: ["AUDIO_PLAYBACK"],
+        justification: "Synthesize critical threat siren alarm for dangerous phishing sites",
+      });
+    } else {
+      chrome.runtime.sendMessage({
+        target: "offscreen",
+        action: "PLAY_THREAT_ALARM",
+      }).catch(() => {});
+    }
   } catch (err) {
     console.warn("[Sentinel Audio Player]", err);
   }
