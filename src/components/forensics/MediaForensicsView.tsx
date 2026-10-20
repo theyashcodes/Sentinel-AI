@@ -53,6 +53,11 @@ export function MediaForensicsView() {
       return;
     }
 
+    if (selectedFile.size > 4.5 * 1024 * 1024) {
+      setError(`File size is ${(selectedFile.size / (1024 * 1024)).toFixed(1)} MB. Vercel serverless has a 4.5 MB limit. Please upload an image or video under 4.5 MB.`);
+      return;
+    }
+
     setFile(selectedFile);
     const objectUrl = URL.createObjectURL(selectedFile);
     setPreviewUrl(objectUrl);
@@ -89,6 +94,12 @@ export function MediaForensicsView() {
   const runDissection = async () => {
     if (!file) return;
 
+    if (file.size > 4.5 * 1024 * 1024) {
+      setError(`File size is ${(file.size / (1024 * 1024)).toFixed(1)} MB. Vercel serverless functions have a 4.5 MB request limit. Please choose a file under 4.5 MB.`);
+      setScanning(false);
+      return;
+    }
+
     setScanning(true);
     setError(null);
     setResult(null);
@@ -102,11 +113,22 @@ export function MediaForensicsView() {
         body: formData,
       });
 
-      const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Failed to analyze media");
+        if (res.status === 413) {
+          throw new Error(`File is too large (${(file.size / (1024 * 1024)).toFixed(1)} MB). Vercel serverless limit is 4.5 MB. Please upload a file under 4.5 MB.`);
+        }
+        let errorMsg = `Server error (${res.status})`;
+        try {
+          const errData = await res.json();
+          errorMsg = errData.error || errData.message || errorMsg;
+        } catch {
+          const text = await res.text();
+          if (text) errorMsg = text.slice(0, 100);
+        }
+        throw new Error(errorMsg);
       }
 
+      const data = await res.json();
       setResult(data);
 
       // Notify CyBro for real-time optimal safe action advisory

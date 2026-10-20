@@ -178,11 +178,22 @@ export default function QrScannerPage() {
         body: formData,
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(data.message || data.error || "Failed to analyze QR code.");
+        if (response.status === 413) {
+          throw new Error("File is too large for server analysis. Please upload an image under 4.5 MB.");
+        }
+        let errorMsg = "Failed to analyze QR code.";
+        try {
+          const errData = await response.json();
+          errorMsg = errData.message || errData.error || errorMsg;
+        } catch {
+          const text = await response.text();
+          if (text) errorMsg = text.slice(0, 100);
+        }
+        throw new Error(errorMsg);
       }
+
+      const data = await response.json();
 
       setResult(data);
       fetchHistory();

@@ -88,10 +88,22 @@ export function EmailAuditView() {
         });
       }
 
-      const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Failed to analyze email headers");
+        if (res.status === 413) {
+          throw new Error("Email file is too large for server analysis. Please upload a file under 4.5 MB.");
+        }
+        let errorMsg = "Failed to analyze email headers";
+        try {
+          const errData = await res.json();
+          errorMsg = errData.error || errData.message || errorMsg;
+        } catch {
+          const text = await res.text();
+          if (text) errorMsg = text.slice(0, 100);
+        }
+        throw new Error(errorMsg);
       }
+
+      const data = await res.json();
 
       setResult(data);
 
