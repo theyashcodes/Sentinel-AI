@@ -144,6 +144,24 @@ export function VoiceForensicsView() {
     setAudioUrl(url);
     setIsPlaying(false);
     setCurrentTime(0);
+
+    // Exact duration extraction using Web Audio API (fixes 0:00 on Chrome WebM recordings)
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      const tempCtx = new AudioCtx();
+      selectedFile.arrayBuffer().then((buf) => {
+        tempCtx.decodeAudioData(buf).then((decoded) => {
+          if (decoded && decoded.duration > 0) {
+            setDuration(decoded.duration);
+          }
+          tempCtx.close();
+        }).catch(() => {
+          tempCtx.close();
+        });
+      });
+    } catch {
+      // fallback
+    }
   };
 
   // Dissect Audio
@@ -732,11 +750,12 @@ ${result.scamAnalysis.advice.map((a) => "- " + a).join("\n")}`;
               <div className="flex items-center gap-3">
                 <button
                   onClick={togglePlay}
-                  className="w-10 h-10 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black flex items-center justify-center transition shadow-lg shadow-cyan-500/20"
+                  title={isPlaying ? "Pause" : "Play"}
+                  className="w-10 h-10 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black flex items-center justify-center transition shadow-lg shadow-cyan-500/20 shrink-0"
                 >
                   {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
                 </button>
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs font-semibold truncate max-w-[200px]" style={{ color: "var(--ink)" }}>
                     {file?.name || "Audio Recording"}
                   </p>
@@ -751,13 +770,34 @@ ${result.scamAnalysis.advice.map((a) => "- " + a).join("\n")}`;
                 <input
                   type="range"
                   min="0"
-                  max={duration || 100}
+                  max={duration > 0 ? duration : 100}
                   step="0.01"
                   value={currentTime}
                   onChange={handleSeek}
                   className="w-full accent-cyan-500 bg-slate-300 dark:bg-slate-800 h-1.5 rounded-lg cursor-pointer"
                 />
               </div>
+
+              {/* Quick Scan Action Button */}
+              {!result && (
+                <button
+                  disabled={scanning}
+                  onClick={runAudioDissection}
+                  className="px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shrink-0 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black shadow-md shadow-cyan-500/20 active:scale-[0.98]"
+                >
+                  {scanning ? (
+                    <>
+                      <Activity className="w-3.5 h-3.5 animate-spin text-black" />
+                      Scanning...
+                    </>
+                  ) : (
+                    <>
+                      <Activity className="w-3.5 h-3.5" />
+                      Scan This Audio Now
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           )}
 
