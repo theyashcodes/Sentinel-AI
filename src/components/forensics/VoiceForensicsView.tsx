@@ -383,28 +383,45 @@ ${result.scamAnalysis.advice.map((a) => "- " + a).join("\n")}`;
       )}
 
       {/* Header Banner */}
-      <div className="relative overflow-hidden rounded-2xl border border-cyan-500/30 bg-gradient-to-r from-cyan-950/40 via-slate-900/60 to-purple-950/40 p-6 md:p-8 backdrop-blur-xl shadow-2xl">
+      <div
+        className="relative overflow-hidden rounded-2xl p-6 md:p-8 backdrop-blur-xl shadow-xl"
+        style={{
+          backgroundColor: "var(--panel-card)",
+          border: "1px solid var(--panel-card-border)",
+        }}
+      >
         <div className="absolute -top-24 -right-24 w-72 h-72 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2 max-w-3xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-cyan-500/15 border border-cyan-500/30 text-cyan-600 dark:text-cyan-400">
               <Activity className="w-3.5 h-3.5 animate-pulse" />
               BIO-ACOUSTIC FORENSIC LAB · NEURAL VOCODER DISSECTOR
             </div>
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-white flex items-center gap-3">
-              <Mic className="w-8 h-8 text-cyan-400" />
+            <h1
+              className="text-2xl md:text-3xl font-bold tracking-tight flex items-center gap-3"
+              style={{ color: "var(--ink)" }}
+            >
+              <Mic className="w-8 h-8 text-cyan-500 dark:text-cyan-400" />
               AI Voice Clone & Deepfake Detector
             </h1>
-            <p className="text-sm text-slate-300 leading-relaxed">
+            <p
+              className="text-sm leading-relaxed"
+              style={{ color: "var(--muted)" }}
+            >
               Detect synthetic neural voice clones, ElevenLabs TTS, RVC models, and audio impersonation scams.
-              Calculates biological pitch micro-jitter ($F_0$), amplitude shimmer, phase smearing, and high-frequency Nyquist brickwall cutoffs.
+              Calculates biological pitch micro-jitter (F₀), amplitude shimmer, phase smearing, and high-frequency Nyquist brickwall cutoffs.
             </p>
           </div>
 
           <div className="flex items-center gap-2 self-start md:self-auto">
             <button
               onClick={handleReset}
-              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 transition shadow-sm"
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-medium transition shadow-sm"
+              style={{
+                backgroundColor: "var(--ground)",
+                color: "var(--ink)",
+                border: "1px solid var(--hair-10)",
+              }}
             >
               <RotateCcw className="w-3.5 h-3.5" />
               Reset Lab
@@ -417,15 +434,27 @@ ${result.scamAnalysis.advice.map((a) => "- " + a).join("\n")}`;
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Input Panel */}
         <div className="lg:col-span-1 space-y-4">
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/60 backdrop-blur-xl p-4 shadow-xl">
+          <div
+            className="rounded-2xl p-4 shadow-xl backdrop-blur-xl"
+            style={{
+              backgroundColor: "var(--panel-card)",
+              border: "1px solid var(--panel-card-border)",
+            }}
+          >
             {/* Tabs */}
-            <div className="grid grid-cols-3 gap-1 p-1 bg-slate-950/80 rounded-xl border border-slate-800/80 mb-4">
+            <div
+              className="grid grid-cols-3 gap-1 p-1 rounded-xl mb-4"
+              style={{
+                backgroundColor: "var(--ground)",
+                border: "1px solid var(--hair-10)",
+              }}
+            >
               <button
                 onClick={() => setActiveTab("upload")}
                 className={`py-2 text-xs font-semibold rounded-lg transition flex items-center justify-center gap-1.5 ${
                   activeTab === "upload"
-                    ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm"
-                    : "text-slate-400 hover:text-slate-200"
+                    ? "bg-cyan-500/20 text-cyan-500 dark:text-cyan-300 border border-cyan-500/40 shadow-sm"
+                    : "text-slate-600 dark:text-slate-400 hover:text-black dark:hover:text-white"
                 }`}
               >
                 <UploadCloud className="w-3.5 h-3.5" />
@@ -435,8 +464,8 @@ ${result.scamAnalysis.advice.map((a) => "- " + a).join("\n")}`;
                 onClick={() => setActiveTab("record")}
                 className={`py-2 text-xs font-semibold rounded-lg transition flex items-center justify-center gap-1.5 ${
                   activeTab === "record"
-                    ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm"
-                    : "text-slate-400 hover:text-slate-200"
+                    ? "bg-cyan-500/20 text-cyan-500 dark:text-cyan-300 border border-cyan-500/40 shadow-sm"
+                    : "text-slate-600 dark:text-slate-400 hover:text-black dark:hover:text-white"
                 }`}
               >
                 <Mic className="w-3.5 h-3.5" />
@@ -446,8 +475,8 @@ ${result.scamAnalysis.advice.map((a) => "- " + a).join("\n")}`;
                 onClick={() => setActiveTab("presets")}
                 className={`py-2 text-xs font-semibold rounded-lg transition flex items-center justify-center gap-1.5 ${
                   activeTab === "presets"
-                    ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm"
-                    : "text-slate-400 hover:text-slate-200"
+                    ? "bg-cyan-500/20 text-cyan-500 dark:text-cyan-300 border border-cyan-500/40 shadow-sm"
+                    : "text-slate-600 dark:text-slate-400 hover:text-black dark:hover:text-white"
                 }`}
               >
                 <Sparkles className="w-3.5 h-3.5" />
@@ -466,11 +495,14 @@ ${result.scamAnalysis.advice.map((a) => "- " + a).join("\n")}`;
                   onClick={() => fileInputRef.current?.click()}
                   className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition flex flex-col items-center justify-center gap-3 ${
                     dragActive
-                      ? "border-cyan-400 bg-cyan-500/10"
+                      ? "border-cyan-500 bg-cyan-500/10"
                       : file
                       ? "border-emerald-500/50 bg-emerald-500/5"
-                      : "border-slate-700/80 hover:border-slate-600 bg-slate-950/40"
+                      : "border-slate-300 dark:border-slate-700/80 hover:border-slate-400 dark:hover:border-slate-600"
                   }`}
+                  style={{
+                    backgroundColor: "var(--ground-secondary)",
+                  }}
                 >
                   <input
                     ref={fileInputRef}
@@ -479,14 +511,14 @@ ${result.scamAnalysis.advice.map((a) => "- " + a).join("\n")}`;
                     onChange={(e) => e.target.files?.[0] && handleFileSelected(e.target.files[0])}
                     className="hidden"
                   />
-                  <div className="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 shadow-inner">
+                  <div className="w-12 h-12 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-600 dark:text-cyan-400 shadow-inner">
                     <FileAudio className="w-6 h-6" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-slate-200">
+                    <p className="text-sm font-semibold" style={{ color: "var(--ink)" }}>
                       {file ? file.name : "Select or Drop Audio File"}
                     </p>
-                    <p className="text-xs text-slate-400 mt-1">
+                    <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>
                       {file
                         ? `${(file.size / (1024 * 1024)).toFixed(2)} MB · Click to swap`
                         : "Supports MP3, WAV, M4A, OGG, WEBM, FLAC (Max 50MB)"}
@@ -499,7 +531,7 @@ ${result.scamAnalysis.advice.map((a) => "- " + a).join("\n")}`;
                   onClick={runAudioDissection}
                   className={`w-full py-3 px-4 rounded-xl font-semibold text-sm transition flex items-center justify-center gap-2 shadow-lg ${
                     !file || scanning
-                      ? "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700/50"
+                      ? "bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed border border-slate-300 dark:border-slate-700/50"
                       : "bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black font-bold shadow-cyan-500/25 active:scale-[0.99]"
                   }`}
                 >
@@ -521,22 +553,28 @@ ${result.scamAnalysis.advice.map((a) => "- " + a).join("\n")}`;
             {/* TAB 2: Live Microphone */}
             {activeTab === "record" && (
               <div className="space-y-4 text-center py-4">
-                <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800/80">
+                <div
+                  className="p-5 rounded-xl"
+                  style={{
+                    backgroundColor: "var(--ground-secondary)",
+                    border: "1px solid var(--hair-10)",
+                  }}
+                >
                   <div
                     className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center transition shadow-2xl ${
                       isRecording
-                        ? "bg-rose-500/20 border-2 border-rose-500 text-rose-400 animate-pulse"
-                        : "bg-slate-800 border border-slate-700 text-slate-400"
+                        ? "bg-rose-500/20 border-2 border-rose-500 text-rose-500 animate-pulse"
+                        : "bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400"
                     }`}
                   >
                     <Mic className="w-9 h-9" />
                   </div>
 
                   <div className="mt-4">
-                    <p className="text-sm font-semibold text-slate-200">
+                    <p className="text-sm font-semibold" style={{ color: "var(--ink)" }}>
                       {isRecording ? "Listening & Capturing Voice..." : "Live Microphone Capture"}
                     </p>
-                    <p className="text-xs text-slate-400 mt-1">
+                    <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>
                       {isRecording ? `Duration: ${formatSecs(recordingSeconds)}` : "Record at least 3-5 seconds of speech"}
                     </p>
                   </div>
@@ -587,60 +625,60 @@ ${result.scamAnalysis.advice.map((a) => "- " + a).join("\n")}`;
             {/* TAB 3: Instant Presets */}
             {activeTab === "presets" && (
               <div className="space-y-3">
-                <p className="text-xs text-slate-400">
+                <p className="text-xs" style={{ color: "var(--muted)" }}>
                   Instant real-world test vectors to verify detector sensitivity:
                 </p>
 
                 <button
                   onClick={() => loadPreset("elevenlabs")}
-                  className="w-full text-left p-3 rounded-xl border border-rose-500/30 bg-rose-950/20 hover:bg-rose-900/30 transition flex items-center justify-between group"
+                  className="w-full text-left p-3.5 rounded-xl border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/15 transition flex items-center justify-between group shadow-sm"
                 >
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-rose-500" />
-                      <p className="text-xs font-bold text-rose-300">ElevenLabs Scam Clone</p>
+                      <p className="text-xs font-bold text-rose-600 dark:text-rose-300">ElevenLabs Scam Clone</p>
                     </div>
-                    <p className="text-[11px] text-slate-400">
+                    <p className="text-[11px]" style={{ color: "var(--muted)" }}>
                       HiFi-GAN vocoder, 11.8 kHz cutoff, sterile pitch jitter (0.14%).
                     </p>
                   </div>
-                  <span className="text-xs px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 font-mono">
+                  <span className="text-xs px-2 py-0.5 rounded bg-rose-500/20 text-rose-600 dark:text-rose-300 border border-rose-500/30 font-mono font-bold">
                     96.4% AI
                   </span>
                 </button>
 
                 <button
                   onClick={() => loadPreset("rvc")}
-                  className="w-full text-left p-3 rounded-xl border border-amber-500/30 bg-amber-950/20 hover:bg-amber-900/30 transition flex items-center justify-between group"
+                  className="w-full text-left p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/15 transition flex items-center justify-between group shadow-sm"
                 >
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-amber-500" />
-                      <p className="text-xs font-bold text-amber-300">RVC v2 Voice Conversion</p>
+                      <p className="text-xs font-bold text-amber-600 dark:text-amber-300">RVC v2 Voice Conversion</p>
                     </div>
-                    <p className="text-[11px] text-slate-400">
+                    <p className="text-[11px]" style={{ color: "var(--muted)" }}>
                       Crepe/Harvest pitch quantization jumps, phase smearing.
                     </p>
                   </div>
-                  <span className="text-xs px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono">
+                  <span className="text-xs px-2 py-0.5 rounded bg-amber-500/20 text-amber-600 dark:text-amber-300 border border-amber-500/30 font-mono font-bold">
                     88.2% AI
                   </span>
                 </button>
 
                 <button
                   onClick={() => loadPreset("human")}
-                  className="w-full text-left p-3 rounded-xl border border-emerald-500/30 bg-emerald-950/20 hover:bg-emerald-900/30 transition flex items-center justify-between group"
+                  className="w-full text-left p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/15 transition flex items-center justify-between group shadow-sm"
                 >
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                      <p className="text-xs font-bold text-emerald-300">Authentic Human Voice</p>
+                      <p className="text-xs font-bold text-emerald-600 dark:text-emerald-300">Authentic Human Voice</p>
                     </div>
-                    <p className="text-[11px] text-slate-400">
+                    <p className="text-[11px]" style={{ color: "var(--muted)" }}>
                       Organic micro-vibrato (1.12%), 3 natural breath pauses, 21.4 kHz audio.
                     </p>
                   </div>
-                  <span className="text-xs px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-mono">
+                  <span className="text-xs px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30 font-mono font-bold">
                     8.4% Clean
                   </span>
                 </button>
@@ -648,22 +686,34 @@ ${result.scamAnalysis.advice.map((a) => "- " + a).join("\n")}`;
             )}
 
             {error && (
-              <div className="mt-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2">
+              <div className="mt-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-300 text-xs flex items-start gap-2">
                 <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                 <span>{error}</span>
               </div>
             )}
           </div>
 
-          {/* Quick Explainer Guide */}
-          <div className="rounded-2xl border border-slate-800/80 bg-slate-900/40 p-4 space-y-2 text-xs text-slate-400">
-            <div className="flex items-center gap-2 text-slate-300 font-semibold">
-              <Info className="w-3.5 h-3.5 text-cyan-400" />
+          {/* Quick Explainer Guide (High Contrast) */}
+          <div
+            className="rounded-2xl p-5 space-y-2.5 text-xs shadow-md"
+            style={{
+              backgroundColor: "var(--panel-card)",
+              border: "1px solid var(--panel-card-border)",
+            }}
+          >
+            <div
+              className="flex items-center gap-2 font-bold text-sm tracking-tight"
+              style={{ color: "var(--ink)" }}
+            >
+              <Info className="w-4 h-4 text-cyan-500 dark:text-cyan-400 shrink-0" />
               How Deepfake Audio Detection Works
             </div>
-            <p className="leading-relaxed">
-              Human vocal cords produce natural micro-jitter ($0.5\% - 1.8\%$) and continuous pulmonary air intake.
-              AI neural vocoders (ElevenLabs, RVC, Bark) resample speech internally, leaving rigid flat pitch signatures, absence of biological breath pauses, and steep frequency cutoffs above 11-16 kHz.
+            <p
+              className="leading-relaxed"
+              style={{ color: "var(--muted)", fontSize: "13px" }}
+            >
+              Human vocal cords produce natural micro-jitter <strong style={{ color: "var(--ink)" }}>(0.5% – 1.8%)</strong> and continuous pulmonary air intake.
+              AI neural vocoders (ElevenLabs, RVC, Bark) resample speech internally, leaving rigid flat pitch signatures, absence of biological breath pauses, and steep frequency cutoffs above 11–16 kHz.
             </p>
           </div>
         </div>
@@ -672,7 +722,13 @@ ${result.scamAnalysis.advice.map((a) => "- " + a).join("\n")}`;
         <div className="lg:col-span-2 space-y-6">
           {/* Audio Player Bar (if audio file loaded) */}
           {audioUrl && (
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 backdrop-blur-xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xl">
+            <div
+              className="rounded-2xl p-4 backdrop-blur-xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xl"
+              style={{
+                backgroundColor: "var(--panel-card)",
+                border: "1px solid var(--panel-card-border)",
+              }}
+            >
               <div className="flex items-center gap-3">
                 <button
                   onClick={togglePlay}
@@ -681,10 +737,10 @@ ${result.scamAnalysis.advice.map((a) => "- " + a).join("\n")}`;
                   {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
                 </button>
                 <div>
-                  <p className="text-xs font-semibold text-white truncate max-w-[200px]">
+                  <p className="text-xs font-semibold truncate max-w-[200px]" style={{ color: "var(--ink)" }}>
                     {file?.name || "Audio Recording"}
                   </p>
-                  <p className="text-[11px] font-mono text-cyan-400">
+                  <p className="text-[11px] font-mono text-cyan-600 dark:text-cyan-400">
                     {formatSecs(currentTime)} / {formatSecs(duration || 0)}
                   </p>
                 </div>
@@ -699,7 +755,7 @@ ${result.scamAnalysis.advice.map((a) => "- " + a).join("\n")}`;
                   step="0.01"
                   value={currentTime}
                   onChange={handleSeek}
-                  className="w-full accent-cyan-400 bg-slate-800 h-1.5 rounded-lg cursor-pointer"
+                  className="w-full accent-cyan-500 bg-slate-300 dark:bg-slate-800 h-1.5 rounded-lg cursor-pointer"
                 />
               </div>
             </div>
@@ -709,7 +765,13 @@ ${result.scamAnalysis.advice.map((a) => "- " + a).join("\n")}`;
           {result ? (
             <div className="space-y-6">
               {/* Primary Score & Verdict Card */}
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/80 backdrop-blur-xl p-6 md:p-8 shadow-2xl relative overflow-hidden">
+              <div
+                className="rounded-2xl p-6 md:p-8 shadow-2xl relative overflow-hidden backdrop-blur-xl"
+                style={{
+                  backgroundColor: "var(--panel-card)",
+                  border: "1px solid var(--panel-card-border)",
+                }}
+              >
                 <div
                   className={`absolute top-0 right-0 w-80 h-80 rounded-full blur-3xl pointer-events-none opacity-20 ${
                     result.verdict === "CONFIRMED_AI_VOICE_CLONE"
@@ -724,70 +786,91 @@ ${result.scamAnalysis.advice.map((a) => "- " + a).join("\n")}`;
                   <div className="space-y-3">
                     <div className="flex items-center gap-2.5">
                       {result.verdict === "CONFIRMED_AI_VOICE_CLONE" ? (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-500/15 border border-rose-500/40 text-rose-400 shadow-sm">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-500/15 border border-rose-500/40 text-rose-600 dark:text-rose-400 shadow-sm">
                           <XCircle className="w-3.5 h-3.5" />
                           CONFIRMED AI VOICE CLONE
                         </span>
                       ) : result.verdict === "SUSPICIOUS_SYNTHETIC_ARTIFACTS" ? (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/15 border border-amber-500/40 text-amber-400 shadow-sm">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/15 border border-amber-500/40 text-amber-600 dark:text-amber-400 shadow-sm">
                           <AlertTriangle className="w-3.5 h-3.5" />
                           SUSPICIOUS SYNTHETIC ARTIFACTS
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 shadow-sm">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/15 border border-emerald-500/40 text-emerald-600 dark:text-emerald-400 shadow-sm">
                           <ShieldCheck className="w-3.5 h-3.5" />
                           AUTHENTIC HUMAN VOICE
                         </span>
                       )}
 
-                      <span className="text-xs font-mono text-slate-400 bg-slate-800/80 px-2.5 py-1 rounded-full border border-slate-700/60">
+                      <span
+                        className="text-xs font-mono px-2.5 py-1 rounded-full"
+                        style={{
+                          backgroundColor: "var(--ground)",
+                          color: "var(--muted)",
+                          border: "1px solid var(--hair-10)",
+                        }}
+                      >
                         {result.confidenceScore}% Confidence
                       </span>
                     </div>
 
                     <div>
-                      <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight">
+                      <h2
+                        className="text-xl md:text-2xl font-bold tracking-tight"
+                        style={{ color: "var(--ink)" }}
+                      >
                         {result.matchedArchitecture}
                       </h2>
-                      <p className="text-xs text-slate-400 mt-1">
+                      <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>
                         Sample Rate: {result.sampleRate} Hz · Duration: {result.audioDurationSeconds}s · Channels: {result.channels}
                       </p>
                     </div>
                   </div>
 
                   {/* AI Probability Radial Score */}
-                  <div className="flex items-center gap-4 bg-slate-950/70 p-4 rounded-2xl border border-slate-800 shadow-inner">
+                  <div
+                    className="flex items-center gap-4 p-4 rounded-2xl shadow-inner"
+                    style={{
+                      backgroundColor: "var(--ground)",
+                      border: "1px solid var(--hair-10)",
+                    }}
+                  >
                     <div className="text-right">
-                      <p className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">AI Likelihood</p>
+                      <p className="text-[11px] uppercase tracking-wider font-semibold" style={{ color: "var(--muted)" }}>
+                        AI Likelihood
+                      </p>
                       <p
                         className={`text-3xl md:text-4xl font-extrabold tracking-tight font-mono ${
                           result.aiProbabilityScore > 70
-                            ? "text-rose-400"
+                            ? "text-rose-500 dark:text-rose-400"
                             : result.aiProbabilityScore > 40
-                            ? "text-amber-400"
-                            : "text-emerald-400"
+                            ? "text-amber-500 dark:text-amber-400"
+                            : "text-emerald-500 dark:text-emerald-400"
                         }`}
                       >
                         {result.aiProbabilityScore}%
                       </p>
-                      <p className="text-[10px] text-slate-500">Neural Synthesis Score</p>
+                      <p className="text-[10px]" style={{ color: "var(--muted)" }}>Neural Synthesis Score</p>
                     </div>
                   </div>
                 </div>
 
                 {/* Spectrogram Canvas */}
-                <div className="mt-6 pt-6 border-t border-slate-800/80 space-y-2">
-                  <div className="flex items-center justify-between text-xs text-slate-400">
-                    <span className="font-semibold flex items-center gap-1.5 text-slate-300">
-                      <Radio className="w-3.5 h-3.5 text-cyan-400" />
-                      Spectrogram Spectral Frequency Map (0 - 22.05 kHz)
+                <div
+                  className="mt-6 pt-6 space-y-2"
+                  style={{ borderTop: "1px solid var(--hair-10)" }}
+                >
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold flex items-center gap-1.5" style={{ color: "var(--ink)" }}>
+                      <Radio className="w-3.5 h-3.5 text-cyan-500 dark:text-cyan-400" />
+                      Spectrogram Spectral Frequency Map (0 – 22.05 kHz)
                     </span>
-                    <span className="font-mono text-[11px] text-cyan-400">
+                    <span className="font-mono text-[11px] font-bold text-cyan-600 dark:text-cyan-400">
                       Cutoff: {result.acousticMetrics.spectralCutoffKHz} kHz
                     </span>
                   </div>
 
-                  <div className="relative rounded-xl overflow-hidden border border-slate-800 bg-black">
+                  <div className="relative rounded-xl overflow-hidden border border-slate-700/60 bg-black">
                     <canvas
                       ref={canvasRef}
                       width={640}
@@ -801,15 +884,18 @@ ${result.scamAnalysis.advice.map((a) => "- " + a).join("\n")}`;
               {/* 5 Forensic Indicators Grid */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-white tracking-tight flex items-center gap-2">
-                    <Layers className="w-4 h-4 text-cyan-400" />
+                  <h3
+                    className="text-sm font-bold tracking-tight flex items-center gap-2"
+                    style={{ color: "var(--ink)" }}
+                  >
+                    <Layers className="w-4 h-4 text-cyan-500 dark:text-cyan-400" />
                     Bio-Acoustic Signal Breakdown
                   </h3>
                   <button
                     onClick={copyReport}
-                    className="inline-flex items-center gap-1.5 text-xs text-cyan-400 hover:text-cyan-300 transition"
+                    className="inline-flex items-center gap-1.5 text-xs text-cyan-600 dark:text-cyan-400 hover:underline transition font-medium"
                   >
-                    {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
                     {copied ? "Report Copied" : "Copy Forensic Report"}
                   </button>
                 </div>
@@ -820,27 +906,35 @@ ${result.scamAnalysis.advice.map((a) => "- " + a).join("\n")}`;
                       key={i}
                       className={`p-4 rounded-xl border backdrop-blur-md transition ${
                         ind.status === "fail"
-                          ? "bg-rose-950/15 border-rose-500/30"
+                          ? "bg-rose-500/10 border-rose-500/30"
                           : ind.status === "warn"
-                          ? "bg-amber-950/15 border-amber-500/30"
-                          : "bg-slate-900/60 border-slate-800"
+                          ? "bg-amber-500/10 border-amber-500/30"
+                          : ""
                       }`}
+                      style={{
+                        backgroundColor: ind.status === "pass" ? "var(--panel-card)" : undefined,
+                        borderColor: ind.status === "pass" ? "var(--panel-card-border)" : undefined,
+                      }}
                     >
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-semibold text-slate-200">{ind.name}</span>
+                        <span className="text-xs font-semibold" style={{ color: "var(--ink)" }}>
+                          {ind.name}
+                        </span>
                         <span
                           className={`text-xs font-mono font-bold px-2 py-0.5 rounded ${
                             ind.status === "fail"
-                              ? "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                              ? "bg-rose-500/20 text-rose-600 dark:text-rose-300 border border-rose-500/30"
                               : ind.status === "warn"
-                              ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
-                              : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                              ? "bg-amber-500/20 text-amber-600 dark:text-amber-300 border border-amber-500/30"
+                              : "bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30"
                           }`}
                         >
                           {ind.value}
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-400 leading-relaxed">{ind.description}</p>
+                      <p className="text-[11px] leading-relaxed" style={{ color: "var(--muted)" }}>
+                        {ind.description}
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -850,46 +944,49 @@ ${result.scamAnalysis.advice.map((a) => "- " + a).join("\n")}`;
               <div
                 className={`p-5 rounded-2xl border backdrop-blur-xl ${
                   result.riskLevel === "malicious"
-                    ? "bg-rose-950/30 border-rose-500/40"
+                    ? "bg-rose-500/10 border-rose-500/30"
                     : result.riskLevel === "suspicious"
-                    ? "bg-amber-950/30 border-amber-500/40"
-                    : "bg-emerald-950/20 border-emerald-500/30"
+                    ? "bg-amber-500/10 border-amber-500/30"
+                    : "bg-emerald-500/10 border-emerald-500/30"
                 }`}
               >
                 <div className="flex items-center gap-2 mb-2">
                   <ShieldCheck
                     className={`w-5 h-5 ${
                       result.riskLevel === "malicious"
-                        ? "text-rose-400"
+                        ? "text-rose-500 dark:text-rose-400"
                         : result.riskLevel === "suspicious"
-                        ? "text-amber-400"
-                        : "text-emerald-400"
+                        ? "text-amber-500 dark:text-amber-400"
+                        : "text-emerald-500 dark:text-emerald-400"
                     }`}
                   />
-                  <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                  <h4 className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--ink)" }}>
                     {result.scamAnalysis.threatType}
                   </h4>
                 </div>
 
-                <ul className="space-y-1.5 mt-3 text-xs text-slate-300">
+                <ul className="space-y-1.5 mt-3 text-xs" style={{ color: "var(--muted)" }}>
                   {result.scamAnalysis.advice.map((item, idx) => (
                     <li key={idx} className="flex items-start gap-2">
-                      <span className="text-cyan-400 mt-0.5">▸</span>
+                      <span className="text-cyan-500 dark:text-cyan-400 mt-0.5">▸</span>
                       <span>{item}</span>
                     </li>
                   ))}
                 </ul>
 
                 {result.riskLevel === "malicious" && (
-                  <div className="mt-4 pt-3 border-t border-rose-500/20 flex flex-wrap items-center justify-between gap-3 text-xs">
-                    <span className="text-rose-300 font-semibold">
+                  <div
+                    className="mt-4 pt-3 flex flex-wrap items-center justify-between gap-3 text-xs"
+                    style={{ borderTop: "1px solid var(--hair-10)" }}
+                  >
+                    <span className="text-rose-600 dark:text-rose-300 font-semibold">
                       Helpline: Call 1930 (National Cyber Crime Reporting)
                     </span>
                     <a
                       href="https://cybercrime.gov.in"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-cyan-400 hover:text-cyan-300 font-medium"
+                      className="inline-flex items-center gap-1 text-cyan-600 dark:text-cyan-400 hover:underline font-medium"
                     >
                       Report to cybercrime.gov.in
                       <ExternalLink className="w-3.5 h-3.5" />
@@ -899,14 +996,28 @@ ${result.scamAnalysis.advice.map((a) => "- " + a).join("\n")}`;
               </div>
             </div>
           ) : (
-            /* Empty State */
-            <div className="rounded-2xl border border-slate-800/80 bg-slate-900/30 p-12 text-center flex flex-col items-center justify-center gap-4">
-              <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
-                <Volume2 className="w-8 h-8 opacity-70" />
+            /* Empty State (Crystal Clear High Contrast) */
+            <div
+              className="rounded-2xl p-12 text-center flex flex-col items-center justify-center gap-4 shadow-lg backdrop-blur-xl"
+              style={{
+                backgroundColor: "var(--panel-card)",
+                border: "1px solid var(--panel-card-border)",
+              }}
+            >
+              <div className="w-16 h-16 rounded-2xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-600 dark:text-cyan-400 shadow-sm">
+                <Volume2 className="w-8 h-8" />
               </div>
-              <div className="max-w-md space-y-1">
-                <h3 className="text-base font-bold text-slate-200">Awaiting Audio Source</h3>
-                <p className="text-xs text-slate-400 leading-relaxed">
+              <div className="max-w-md space-y-2">
+                <h3
+                  className="text-base font-bold tracking-tight"
+                  style={{ color: "var(--ink)" }}
+                >
+                  Awaiting Audio Source
+                </h3>
+                <p
+                  className="text-xs leading-relaxed max-w-sm mx-auto"
+                  style={{ color: "var(--muted)", fontSize: "13px" }}
+                >
                   Upload an audio file (e.g. suspicious WhatsApp voice note), record directly via your microphone, or try one of the instant simulation presets to test detection.
                 </p>
               </div>
