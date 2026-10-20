@@ -115,7 +115,9 @@ export function auditSmishingMessage(messageText: string, senderInput?: string):
 
   // 6. Determine Scam Category
   let category = "Suspicious Unsolicited Broadcast";
-  if (lower.includes("electric") || lower.includes("power") || lower.includes("bijli") || lower.includes("bill")) {
+  if (lower.startsWith("[standalone")) {
+    category = "Telecom & Carrier Reverse Telemetry";
+  } else if (lower.includes("electric") || lower.includes("power") || lower.includes("bijli") || lower.includes("bill")) {
     category = "Electricity / Utility Disconnection Fraud";
   } else if (lower.includes("sbi") || lower.includes("yono") || lower.includes("hdfc") || lower.includes("kyc") || lower.includes("pan card")) {
     category = "Banking KYC & Account Deactivation Trap";
@@ -130,7 +132,7 @@ export function auditSmishingMessage(messageText: string, senderInput?: string):
   }
 
   // 7. Calculate Consolidated Risk Score (0 - 100)
-  let riskScore = 15; // baseline clean message
+  let riskScore = lower.startsWith("[standalone") ? 0 : 15; // baseline clean message
 
   // URL presence penalties
   if (extractedUrls.length > 0) {
@@ -168,7 +170,7 @@ export function auditSmishingMessage(messageText: string, senderInput?: string):
         riskScore = 5;
         forensicSignals.push("Genuine verified TRAI DLT header registered to financial institution.");
       }
-    } else if (detectedImpersonation && phoneIntelligence.lineType === "MOBILE") {
+    } else if (detectedImpersonation && phoneIntelligence.lineType === "MOBILE" && !lower.startsWith("[standalone")) {
       // Message claims to be from Bank or Electricity board, but came from a personal 10-digit mobile number!
       riskScore = Math.max(riskScore, 95);
       forensicSignals.push("CRITICAL FRAUD: Message claims to represent an institution, but originates from a personal 10-digit mobile SIM.");
@@ -177,6 +179,8 @@ export function auditSmishingMessage(messageText: string, senderInput?: string):
     if (phoneIntelligence.spamScore >= 80) {
       riskScore = Math.max(riskScore, phoneIntelligence.spamScore);
       forensicSignals.push(`Caller Intelligence: Number has ${phoneIntelligence.spamReportsCount} active fraud complaints.`);
+    } else if (phoneIntelligence.spamScore === 0 && (lower.startsWith("[standalone") || (extractedUrls.length === 0 && extractedApks.length === 0 && panicScore === 0))) {
+      riskScore = 0;
     }
   }
 

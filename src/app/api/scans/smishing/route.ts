@@ -12,15 +12,20 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { message, sender } = body;
 
-    if (!message || typeof message !== "string" || message.trim().length === 0) {
+    const rawMessage = typeof message === "string" ? message.trim() : "";
+    const rawSender = typeof sender === "string" ? sender.trim() : "";
+
+    if (!rawMessage && !rawSender) {
       return NextResponse.json(
-        { error: "SMS or WhatsApp message content is required." },
+        { error: "Please enter an SMS/WhatsApp message or a phone number/TRAI header to scan." },
         { status: 400 }
       );
     }
 
+    const effectiveMessage = rawMessage || "[Standalone Telecom Forensic Lookup]";
+
     // Run Smishing & Phone Intelligence Engine
-    const result = auditSmishingMessage(message, sender);
+    const result = auditSmishingMessage(effectiveMessage, rawSender || undefined);
 
     // Map risk score to database enum
     let dbRiskLevel: "SAFE" | "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" = "SAFE";

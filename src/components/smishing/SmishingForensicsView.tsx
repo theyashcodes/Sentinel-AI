@@ -65,8 +65,8 @@ export function SmishingForensicsView() {
     const textToScan = overrideMsg !== undefined ? overrideMsg : messageText;
     const senderToScan = overrideSender !== undefined ? overrideSender : senderInput;
 
-    if (!textToScan.trim()) {
-      setError("Please enter or paste an SMS / WhatsApp message to scan.");
+    if (!textToScan.trim() && !senderToScan.trim()) {
+      setError("Please enter an SMS/WhatsApp message or a phone number to scan.");
       return;
     }
 
@@ -78,13 +78,13 @@ export function SmishingForensicsView() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          message: textToScan,
-          sender: senderToScan || undefined,
+          message: textToScan.trim() || "[Standalone Telecom Forensic Lookup]",
+          sender: senderToScan.trim() || undefined,
         }),
       });
 
       if (!res.ok) {
-        const errJson = await res.json();
+        const errJson = await res.json().catch(() => ({}));
         throw new Error(errJson.error || `HTTP ${res.status}`);
       }
 
@@ -229,12 +229,21 @@ Timestamp: ${result.auditTimestamp}`;
               type="button"
               onClick={() => handleScan()}
               disabled={scanning}
-              className="w-full py-3 px-4 rounded-xl text-xs font-bold tracking-wider uppercase text-white bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 border border-red-500/40 shadow-lg shadow-red-500/20 transition flex items-center justify-center gap-2 disabled:opacity-50"
+              className={`w-full py-3 px-4 rounded-xl text-xs font-bold tracking-wider uppercase text-white shadow-lg transition flex items-center justify-center gap-2 disabled:opacity-50 ${
+                !messageText.trim() && senderInput.trim()
+                  ? "bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 border border-cyan-500/40 shadow-cyan-500/20"
+                  : "bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 border border-red-500/40 shadow-red-500/20"
+              }`}
             >
               {scanning ? (
                 <>
                   <Activity className="w-4 h-4 animate-spin" />
-                  Analyzing NLP & Phone Intelligence...
+                  Analyzing Telecom & Phone Intelligence...
+                </>
+              ) : !messageText.trim() && senderInput.trim() ? (
+                <>
+                  <Radio className="w-4 h-4" />
+                  Trace Telecom Carrier & Number Only
                 </>
               ) : (
                 <>
@@ -471,8 +480,14 @@ Timestamp: ${result.auditTimestamp}`;
 
                     <div className="p-3 rounded-xl bg-black/40 border border-slate-800/80 space-y-1">
                       <div className="text-[10px] font-bold text-slate-400 uppercase">CITIZEN SCAM COMPLAINTS</div>
-                      <div className="text-sm font-bold font-mono text-red-400">
-                        {result.phoneIntelligence.spamReportsCount} Reports
+                      <div
+                        className={`text-sm font-bold font-mono ${
+                          result.phoneIntelligence.spamReportsCount > 0 ? "text-red-400" : "text-emerald-400"
+                        }`}
+                      >
+                        {result.phoneIntelligence.spamReportsCount > 0
+                          ? `${result.phoneIntelligence.spamReportsCount} Reports`
+                          : "0 Reports (Clean)"}
                       </div>
                       <div className="text-[10px] text-slate-400 truncate">
                         {result.phoneIntelligence.spamCategory || "Spam Reputation Engine"}
@@ -481,20 +496,45 @@ Timestamp: ${result.auditTimestamp}`;
                   </div>
 
                   {result.phoneIntelligence.intelligenceFlags.length > 0 && (
-                    <div className="p-3 rounded-xl bg-red-500/5 border border-red-500/20 space-y-1.5">
-                      <div className="text-[10px] font-bold uppercase text-red-400 tracking-wider">
-                        CRITICAL PHONE SIGNALS
+                    <div
+                      className={`p-3 rounded-xl border space-y-1.5 ${
+                        result.phoneIntelligence.riskVerdict === "SAFE"
+                          ? "bg-emerald-500/5 border-emerald-500/20"
+                          : "bg-red-500/5 border-red-500/20"
+                      }`}
+                    >
+                      <div
+                        className={`text-[10px] font-bold uppercase tracking-wider ${
+                          result.phoneIntelligence.riskVerdict === "SAFE" ? "text-emerald-400" : "text-red-400"
+                        }`}
+                      >
+                        {result.phoneIntelligence.riskVerdict === "SAFE"
+                          ? "TELECOM & REGULATORY SIGNALS"
+                          : "CRITICAL PHONE SIGNALS"}
                       </div>
                       <ul className="text-xs text-slate-300 space-y-1">
                         {result.phoneIntelligence.intelligenceFlags.map((flag, idx) => (
                           <li key={idx} className="flex items-start gap-1.5">
-                            <span className="text-red-400 font-bold">▸</span>
+                            <span
+                              className={`font-bold ${
+                                result.phoneIntelligence?.riskVerdict === "SAFE" ? "text-emerald-400" : "text-red-400"
+                              }`}
+                            >
+                              ▸
+                            </span>
                             <span>{flag}</span>
                           </li>
                         ))}
                       </ul>
                     </div>
                   )}
+
+                  <div className="pt-1 border-t border-slate-800/60 flex items-start gap-1.5 text-[10px] text-slate-400">
+                    <ShieldCheck className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0 mt-0.5" />
+                    <span>
+                      <strong>DPDP Act & TRAI Compliance:</strong> Telecom carriers (Vi, Airtel, Jio, BSNL) protect private citizen Aadhaar names by law. Sentinel AI audits HLR circles, routing telemetry, and National Cyber Crime Portal (1930 / NCRP) complaint records.
+                    </span>
+                  </div>
                 </div>
               )}
 
