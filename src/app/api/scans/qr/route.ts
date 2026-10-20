@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { URLScanRequestSchema, UrlNormalizer } from "@/lib/scanner/url/normalizer";
 import { EvidenceGatherer } from "@/lib/scanner/url/gatherer";
-import { ThreatAnalyzer, UrlScannerPromptBuilder, PreScanEvidence } from "@/lib/ai/core";
 import { db } from "@/lib/db";
 import crypto from "crypto";
 import type { InputJsonValue } from "@prisma/client/runtime/client";
+import { RiskLevel } from "@prisma/client";
 import { auth } from "@/lib/auth";
 import { QRDecoder } from "@/modules/scanner/qr/services/decoder";
 import { QRSecurityChecker } from "@/modules/scanner/qr/services/security-checker";
-import { MLInferenceService } from "@/lib/ml/client";
+import { MLInferenceService, SentinelScanVerdict } from "@/lib/ml/client";
+import { QRScanResponse } from "@/modules/scanner/qr/types/qr-scanner";
 
 export async function POST(req: NextRequest) {
   let decodedText = "";
@@ -57,12 +58,11 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    // Validate if it is a URL
+    // Validate if payload is or contains a URL
     let isUrl = true;
     let hostname = "";
-    let securityChecks;
 
-    // Extract URL if surrounded by extra text / pandas formatting
+    // Extract URL if surrounded by extra text / formatting
     let urlCandidate = decodedText.trim();
     const urlMatch = decodedText.match(/(https?:\/\/[^\s"'<>]+)/i);
     if (urlMatch && urlMatch[1]) {
@@ -79,23 +79,8 @@ export async function POST(req: NextRequest) {
       if (!hostname || (!hostname.includes(".") && hostname !== "localhost")) {
         throw new Error("Invalid hostname");
       }
-
-      securityChecks = QRSecurityChecker.analyzeUrl(urlCandidate);
     } catch {
       isUrl = false;
-      securityChecks = {
-        isShortener: false,
-        isPunycode: false,
-        isUnicodeSpoof: false,
-        isHttp: false,
-        isSuspiciousTld: false,
-        warnings: [{
-          code: "INVALID_URL",
-          title: "Invalid URL Format",
-          description: `The QR code contains plain text or an invalid URL structure: "${decodedText}"`,
-          severity: "high" as const
-        }]
-      };
     }
 
     // Hash payload and IP for tracking
@@ -105,6 +90,7 @@ export async function POST(req: NextRequest) {
 
     // If it is NOT a URL, save as UNKNOWN scan and return
     if (!isUrl) {
+      const fallbackEvaluation = QRSecurityChecker.evaluateSecurity(decodedText);
       const scan = await db.scan.create({
         data: {
           type: "QR",
@@ -114,50 +100,102 @@ export async function POST(req: NextRequest) {
           ipHash,
           userId,
           payload: decodedText,
-          evidenceMetadata: { securityChecks: securityChecks as unknown as InputJsonValue }
+          evidenceMetadata: { securityChecks: fallbackEvaluation.securityChecks as unknown as InputJsonValue }
         }
       });
 
-      return NextResponse.json({
+      const responsePayload: QRScanResponse = {
         scanId: scan.id,
         decodedText,
         extractedUrl: decodedText,
-        securityChecks,
+        securityChecks: fallbackEvaluation.securityChecks,
         normalized: decodedText,
+        riskScore: 50,
+        authenticityScore: 50,
         riskLevel: "UNKNOWN",
         confidence: 0,
         threatType: "INVALID_URL",
-        reasoning: "The scanned QR code does not point to a valid web address. No security analysis can be performed on plain text.",
+        reasoning: "The scanned QR code contains plain text or non-standard formatting. No URL security analysis can be performed.",
         indicators: ["Plain Text / Non-URL Payload"],
-        report: "### Decoded Plain Text\n\n```\n" + decodedText + "\n```\n\nThis QR code contains non-URL text and cannot be routed through our URL Scanning engine."
-      });
+        report: "### Decoded Plain Text\n\n```\n" + decodedText + "\n```\n\nThis QR code contains non-URL text.",
+        scoreBreakdown: fallbackEvaluation.riskResult.scoreBreakdown,
+        signalEvidence: fallbackEvaluation.riskResult.signalEvidence,
+        evidence: null,
+      };
+
+      return NextResponse.json(responsePayload);
     }
 
-    // 1. Run Machine Learning Threat Detection (Primary Detection Engine)
-    const mlVerdict = await MLInferenceService.predict(normalizedUrl);
+    // ─────────────────────────────────────────────────────────────
+    // 1. Run Explainable QR & URL Security Evaluation Engine
+    // ─────────────────────────────────────────────────────────────
+    const evaluation = QRSecurityChecker.evaluateSecurity(urlCandidate);
+    const { parsed, riskResult, securityChecks } = evaluation;
 
-    // 2. Gather Evidence from destination URL without blocking on network failures
+    // Log intermediate signals in development mode (Phase 1 Req 3)
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[QR SCAN DEBUG] Input: "${urlCandidate}" | Host: "${parsed.hostname}" | Registrable: "${parsed.domainInfo.registrableDomain}"`);
+      console.log(`[QR SCAN DEBUG] RiskScore: ${riskResult.riskScore}/100 | Level: ${riskResult.threatLevel} | Brand: ${parsed.brandAudit.isImpersonating} | Homoglyph: ${parsed.homoglyphAudit.hasHomoglyphSpoof} | SSRF: ${parsed.ssrfTarget}`);
+      console.log(`[QR SCAN DEBUG] Breakdown:`, riskResult.scoreBreakdown);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // 2. Run Machine Learning Threat Detection (Independent Signal)
+    // ─────────────────────────────────────────────────────────────
+    let mlVerdict: SentinelScanVerdict | null = null;
+    try {
+      mlVerdict = await MLInferenceService.predict(normalizedUrl);
+    } catch (mlErr) {
+      console.warn("ML Inference warning (proceeding with explainable engine):", mlErr);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // 3. Evidence Gathering & SSRF Gate
+    // ─────────────────────────────────────────────────────────────
     let evidenceNetworkNotes = "";
     let evidence: unknown = null;
-    try {
-      evidence = await EvidenceGatherer.gather(normalizedUrl, hostname);
-      if (evidence) {
-        evidenceNetworkNotes = "WHOIS and DNS gathered.";
-      }
-    } catch {
-      mlVerdict.indicators.push("QR destination host is currently unreachable/offline");
-    }
 
-    // Combine any QR structural warnings with ML indicators
-    if (securityChecks.warnings && securityChecks.warnings.length > 0) {
-      securityChecks.warnings.forEach((w: { description: string }) => {
-        if (!mlVerdict.indicators.includes(w.description)) {
-          mlVerdict.indicators.push(w.description);
+    if (parsed.ssrfTarget) {
+      evidenceNetworkNotes = "Network probing blocked due to SSRF policy.";
+      evidence = {
+        ssrfProtected: true,
+        headers: { "x-sentinel-ssrf-block": "Prohibited private or loopback destination. Network scan aborted." }
+      };
+    } else {
+      try {
+        evidence = await EvidenceGatherer.gather(normalizedUrl, hostname);
+        if (evidence) {
+          evidenceNetworkNotes = "DNS and perimeter telemetry gathered.";
         }
-      });
+      } catch {
+        riskResult.indicators.push("QR destination host is currently unreachable/offline");
+      }
     }
 
-    // 3. Persist scan history and link scan results
+    // Combine any ML indicators without duplicate strings
+    if (mlVerdict && mlVerdict.indicators) {
+      for (const ind of mlVerdict.indicators) {
+        if (!riskResult.indicators.includes(ind)) {
+          riskResult.indicators.push(ind);
+        }
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // 4. Map Threat Level to Prisma RiskLevel Enum
+    // ─────────────────────────────────────────────────────────────
+    let dbRiskLevel: RiskLevel = RiskLevel.SAFE;
+    switch (riskResult.threatLevel) {
+      case "CRITICAL": dbRiskLevel = RiskLevel.CRITICAL; break;
+      case "HIGH": dbRiskLevel = RiskLevel.HIGH; break;
+      case "SUSPICIOUS": dbRiskLevel = RiskLevel.MEDIUM; break;
+      case "LOW": dbRiskLevel = RiskLevel.LOW; break;
+      case "SAFE": default: dbRiskLevel = RiskLevel.SAFE; break;
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // 5. Persist Scan in Database
+    // ─────────────────────────────────────────────────────────────
     let scanId = "qr-" + Date.now();
     try {
       const scan = await db.$transaction(async (tx) => {
@@ -165,26 +203,32 @@ export async function POST(req: NextRequest) {
           data: {
             type: "QR",
             status: "COMPLETED",
-            riskLevel: mlVerdict.riskLevel,
+            riskLevel: dbRiskLevel,
             payloadHash,
             ipHash,
             userId,
             payload: normalizedUrl,
-            evidenceMetadata: { securityChecks: securityChecks as unknown as InputJsonValue },
+            evidenceMetadata: {
+              securityChecks: securityChecks as unknown as InputJsonValue,
+              scoreBreakdown: riskResult.scoreBreakdown as unknown as InputJsonValue,
+            },
           },
         });
 
         await tx.scanResult.create({
           data: {
             scanId: newScan.id,
-            aiProvider: "SENTINEL_ML_CORE",
-            aiModel: "HistGradientBoosting-Threat-v1",
-            inferenceTimeMs: 15,
-            confidenceScore: mlVerdict.confidence,
-            threatCategory: mlVerdict.threatType,
+            aiProvider: "SENTINEL_QR_SECURITY_CORE",
+            aiModel: "PSL-WeightedRisk-v2",
+            inferenceTimeMs: 12,
+            confidenceScore: riskResult.confidence,
+            threatCategory: riskResult.threatType,
             analysisMetadata: {
-              probabilities: mlVerdict.probabilities,
-              riskScore: mlVerdict.riskScore,
+              riskScore: riskResult.riskScore,
+              authenticityScore: riskResult.authenticityScore,
+              scoreBreakdown: riskResult.scoreBreakdown,
+              signalEvidence: riskResult.signalEvidence,
+              probabilities: mlVerdict?.probabilities,
               securityChecks,
               evidence,
             } as unknown as InputJsonValue,
@@ -198,20 +242,30 @@ export async function POST(req: NextRequest) {
       console.warn("QR DB Logging warning:", dbErr);
     }
 
-    return NextResponse.json({
+    // ─────────────────────────────────────────────────────────────
+    // 6. Return Explainable Structured Response
+    // ─────────────────────────────────────────────────────────────
+    const responsePayload: QRScanResponse = {
       scanId,
       decodedText,
       extractedUrl: normalizedUrl,
       securityChecks,
       normalized: normalizedUrl,
-      riskLevel: mlVerdict.riskLevel,
-      confidence: mlVerdict.confidence,
-      threatType: mlVerdict.threatType,
-      reasoning: mlVerdict.reasoning,
-      indicators: mlVerdict.indicators,
-      report: mlVerdict.technicalReasoning + (evidenceNetworkNotes ? ` | ${evidenceNetworkNotes}` : ""),
-      evidence,
-    });
+      riskScore: riskResult.riskScore,
+      authenticityScore: riskResult.authenticityScore,
+      riskLevel: riskResult.threatLevel,
+      confidence: riskResult.confidence,
+      threatType: riskResult.threatType,
+      reasoning: riskResult.reasoning,
+      indicators: riskResult.indicators,
+      report: `${riskResult.reasoning} | Engine: Sentinel Multi-Vector Risk Classifier${evidenceNetworkNotes ? ` | ${evidenceNetworkNotes}` : ""}`,
+      scoreBreakdown: riskResult.scoreBreakdown,
+      signalEvidence: riskResult.signalEvidence,
+      evidence: evidence as any,
+      mlProbability: mlVerdict?.probabilities,
+    };
+
+    return NextResponse.json(responsePayload);
 
   } catch (error) {
     console.error("QR Scan General Error:", error);

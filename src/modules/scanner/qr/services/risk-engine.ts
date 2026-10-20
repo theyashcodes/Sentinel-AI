@@ -1,0 +1,526 @@
+// Sentinel AI • Explainable QR Code Risk Scoring & Threat Classification Engine
+// Phase 2 & 3: Transparent, weighted 0-100 risk score with verifiable evidence attribution
+
+import {
+  ParsedUrlDetails,
+  URLSecurityAnalyzer,
+  HOMOGLYPH_MAP
+} from "./url-security";
+import {
+  ScoreBreakdown,
+  SignalEvidenceItem,
+  ThreatClassification,
+  QRScanWarning
+} from "../types/qr-scanner";
+
+// Centralized Configurable Threat Classification Policy
+export const RISK_THRESHOLDS = {
+  SAFE: { min: 0, max: 19, label: "SAFE" as ThreatClassification, color: "emerald" },
+  LOW: { min: 20, max: 39, label: "LOW" as ThreatClassification, color: "sky" },
+  SUSPICIOUS: { min: 40, max: 59, label: "SUSPICIOUS" as ThreatClassification, color: "amber" },
+  HIGH: { min: 60, max: 79, label: "HIGH" as ThreatClassification, color: "orange" },
+  CRITICAL: { min: 80, max: 100, label: "CRITICAL" as ThreatClassification, color: "rose" },
+} as const;
+
+export interface RiskEvaluationResult {
+  riskScore: number;         // 0 - 100 (0 = Safe, 100 = Critical Threat)
+  authenticityScore: number; // 0 - 100 (100 - riskScore)
+  threatLevel: ThreatClassification;
+  confidence: number;        // 0 - 100 (measurement confidence)
+  threatType: string;
+  reasoning: string;
+  indicators: string[];
+  scoreBreakdown: ScoreBreakdown;
+  signalEvidence: SignalEvidenceItem[];
+  warnings: QRScanWarning[];
+}
+
+// Known Safe Top-Tier Platforms (for reputation dampener only, never blind pass)
+const VERIFIED_TOP_TIER_PLATFORMS = new Set([
+  "google.com", "google.co.in", "google.co.uk", "youtube.com",
+  "github.com", "microsoft.com", "apple.com", "wikipedia.org",
+  "cloudflare.com", "amazon.com", "amazon.in"
+]);
+
+// Credential-harvesting keywords
+const CREDENTIAL_LURES = [
+  "login", "signin", "sign-in", "log-in", "verify", "verification",
+  "account-update", "secure-account", "wallet", "seed-phrase", "private-key",
+  "banking", "netbanking", "kyc", "authenticate", "auth-check", "passcode",
+  "billing-confirm", "claim-reward", "lottery-claim"
+];
+
+export class QRRiskEngine {
+  /**
+   * Evaluates comprehensive risk signals and computes an explainable 0-100 score
+   */
+  static evaluate(parsed: ParsedUrlDetails): RiskEvaluationResult {
+    const evidenceList: SignalEvidenceItem[] = [];
+    const warnings: QRScanWarning[] = [];
+    const indicators: string[] = [];
+
+    // ─────────────────────────────────────────────────────────────
+    // DIMENSION 1: Brand Impersonation and Hostname Mismatch (0 - 25)
+    // ─────────────────────────────────────────────────────────────
+    let brandScore = 0;
+    if (parsed.brandAudit.isImpersonating) {
+      if (parsed.brandAudit.brandLocation === "subdomain") {
+        brandScore = 25;
+        evidenceList.push({
+          dimension: "Brand Impersonation",
+          pointsAwarded: 25,
+          maxPoints: 25,
+          title: "Subdomain Brand Spoofing",
+          description: `Hostname masquerades as "${parsed.brandAudit.targetBrand}" inside subdomains, while registered domain is "${parsed.domainInfo.registrableDomain}".`,
+          severity: "critical",
+        });
+        warnings.push({
+          code: "BRAND_MASQUERADE_SUBDOMAIN",
+          title: `Brand Impersonation (${parsed.brandAudit.targetBrand})`,
+          description: `The URL uses "${parsed.brandAudit.targetBrand}" in subdomains to deceive users, but actually points to "${parsed.domainInfo.registrableDomain}".`,
+          severity: "high",
+        });
+        indicators.push(`Brand spoofing: claims ${parsed.brandAudit.targetBrand} on untrusted host ${parsed.domainInfo.registrableDomain}`);
+      } else if (parsed.brandAudit.brandLocation === "userinfo") {
+        brandScore = 20;
+        evidenceList.push({
+          dimension: "Brand Impersonation",
+          pointsAwarded: 20,
+          maxPoints: 25,
+          title: "Authority User-Info Brand Lure",
+          description: `URL authority injects "${parsed.brandAudit.targetBrand}" in username/password field to visually disguise the actual host.`,
+          severity: "high",
+        });
+        warnings.push({
+          code: "BRAND_MASQUERADE_USERINFO",
+          title: "User-Info Brand Masking",
+          description: `URL tricks eye with @ symbol to make ${parsed.brandAudit.targetBrand} appear as the destination host.`,
+          severity: "high",
+        });
+        indicators.push(`User-info authority spoofing targeting ${parsed.brandAudit.targetBrand}`);
+      } else if (parsed.brandAudit.brandLocation === "path") {
+        brandScore = 15;
+        evidenceList.push({
+          dimension: "Brand Impersonation",
+          pointsAwarded: 15,
+          maxPoints: 25,
+          title: "Path Brand Lure on Foreign Host",
+          description: `URL path targets "${parsed.brandAudit.targetBrand}" login on foreign domain "${parsed.domainInfo.registrableDomain}".`,
+          severity: "medium",
+        });
+        indicators.push(`Suspicious ${parsed.brandAudit.targetBrand} path on third-party domain`);
+      }
+    } else {
+      evidenceList.push({
+        dimension: "Brand Impersonation",
+        pointsAwarded: 0,
+        maxPoints: 25,
+        title: "No Brand Mismatch",
+        description: "No unauthorized brand masquerading or deceptive hostname mismatch detected.",
+        severity: "info",
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // DIMENSION 2: Unicode Confusables & Suspicious Punycode (0 - 20)
+    // ─────────────────────────────────────────────────────────────
+    let unicodeScore = 0;
+    if (parsed.homoglyphAudit.hasHomoglyphSpoof) {
+      if (parsed.homoglyphAudit.hasMixedScripts) {
+        unicodeScore = 20;
+        evidenceList.push({
+          dimension: "Unicode & IDN Security",
+          pointsAwarded: 20,
+          maxPoints: 20,
+          title: "Mixed-Script Homoglyph Attack",
+          description: `Domain mixes Latin with non-Latin lookalike characters (${parsed.homoglyphAudit.confusableCharsFound.join(", ")}) to spoof a visually indistinguishable target.`,
+          severity: "critical",
+        });
+        warnings.push({
+          code: "HOMOGLYPH_SPOOF",
+          title: "Homograph Domain Deception",
+          description: `Visual homoglyphs detected: characters like "${parsed.homoglyphAudit.confusableCharsFound.join(", ")}" replace standard Latin letters.`,
+          severity: "high",
+        });
+        indicators.push(`Homoglyph confusable attack: mixed script substitution (${parsed.homoglyphAudit.confusableCharsFound.join(", ")})`);
+      } else {
+        unicodeScore = 15;
+        evidenceList.push({
+          dimension: "Unicode & IDN Security",
+          pointsAwarded: 15,
+          maxPoints: 20,
+          title: "Deceptive Unicode Confusables",
+          description: `Hostname contains confusable glyphs mapping to Latin lookalikes.`,
+          severity: "high",
+        });
+        indicators.push("Suspicious confusable characters found in domain labels");
+      }
+    } else if (parsed.homoglyphAudit.isPunycode) {
+      unicodeScore = 8;
+      evidenceList.push({
+        dimension: "Unicode & IDN Security",
+        pointsAwarded: 8,
+        maxPoints: 20,
+        title: "Punycode IDN Encoded Domain",
+        description: "Domain utilizes Punycode (xn--) encoding. Inspected labels did not show overt mixed-script confusables.",
+        severity: "low",
+      });
+      warnings.push({
+        code: "PUNYCODE_DOMAIN",
+        title: "Punycode Encoded Host",
+        description: "Punycode hostname detected. Verify intended character set before interaction.",
+        severity: "low",
+      });
+    } else {
+      evidenceList.push({
+        dimension: "Unicode & IDN Security",
+        pointsAwarded: 0,
+        maxPoints: 20,
+        title: "Clean ASCII / Standard Encoding",
+        description: "Standard ASCII representation without deceptive Unicode confusables or Punycode masking.",
+        severity: "info",
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // DIMENSION 3: Redirect Risk & Chain Behaviour (0 - 20)
+    // ─────────────────────────────────────────────────────────────
+    let redirectScore = 0;
+    if (parsed.redirectAudit.hasNestedRedirect) {
+      if (parsed.redirectAudit.hopDepth >= 2) {
+        redirectScore = 20;
+        evidenceList.push({
+          dimension: "Redirect Integrity",
+          pointsAwarded: 20,
+          maxPoints: 20,
+          title: "Multi-Hop Chained Redirect Parameters",
+          description: `Deeply nested redirect parameters detected (depth ${parsed.redirectAudit.hopDepth}). Masks final landing page.`,
+          severity: "critical",
+        });
+        warnings.push({
+          code: "NESTED_REDIRECT_CHAIN",
+          title: "Multi-Layer Nested Redirection",
+          description: `URL contains chained redirect parameters leading to: ${parsed.redirectAudit.normalizedCandidate}`,
+          severity: "high",
+        });
+        indicators.push(`Deeply nested redirect chain targeting ${parsed.redirectAudit.normalizedCandidate}`);
+      } else {
+        redirectScore = 14;
+        evidenceList.push({
+          dimension: "Redirect Integrity",
+          pointsAwarded: 14,
+          maxPoints: 20,
+          title: "External Destination Query Parameter",
+          description: `URL passes an external landing destination in query parameters: ${parsed.redirectAudit.candidateUrl}`,
+          severity: "medium",
+        });
+        warnings.push({
+          code: "REDIRECT_PARAM_DETECTED",
+          title: "Embedded Forwarding Target",
+          description: `Potential open redirect pattern passing destination: ${parsed.redirectAudit.candidateUrl}`,
+          severity: "medium",
+        });
+        indicators.push(`Embedded destination parameter: ${parsed.redirectAudit.candidateUrl}`);
+      }
+    } else if (parsed.isShortener) {
+      redirectScore = 10;
+      evidenceList.push({
+        dimension: "Redirect Integrity",
+        pointsAwarded: 10,
+        maxPoints: 20,
+        title: "Known Link Shortener Service",
+        description: `Host (${parsed.domainInfo.registrableDomain}) is a public shortening service that hides the real destination.`,
+        severity: "medium",
+      });
+      warnings.push({
+        code: "URL_SHORTENER",
+        title: "Shortened Link Destination",
+        description: `Uses link shortener ${parsed.domainInfo.registrableDomain} to mask destination URL.`,
+        severity: "medium",
+      });
+      indicators.push(`Link shortener masks real destination (${parsed.domainInfo.registrableDomain})`);
+    } else {
+      evidenceList.push({
+        dimension: "Redirect Integrity",
+        pointsAwarded: 0,
+        maxPoints: 20,
+        title: "Direct Destination",
+        description: "Direct web target with no suspicious redirect parameters or shortener masking.",
+        severity: "info",
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // DIMENSION 4: URL Structure, User-Info Abuse & SSRF (0 - 15)
+    // ─────────────────────────────────────────────────────────────
+    let structureScore = 0;
+    if (parsed.ssrfTarget) {
+      structureScore = 15;
+      evidenceList.push({
+        dimension: "Structure & SSRF Defense",
+        pointsAwarded: 15,
+        maxPoints: 15,
+        title: "SSRF Internal Network Prohibited Target",
+        description: `Destination points to private, loopback, or cloud metadata network (${parsed.hostname}). Network access blocked.`,
+        severity: "critical",
+      });
+      warnings.push({
+        code: "SSRF_PROHIBITED_TARGET",
+        title: "SSRF Protection Triggered",
+        description: `Host ${parsed.hostname} is a prohibited internal/loopback address. Automated fetch aborted.`,
+        severity: "critical",
+      });
+      indicators.push(`SSRF Block: prohibited destination (${parsed.hostname})`);
+    } else if (parsed.hasUserInfo) {
+      structureScore = 12;
+      evidenceList.push({
+        dimension: "Structure & SSRF Defense",
+        pointsAwarded: 12,
+        maxPoints: 15,
+        title: "User-Info Authority Abuse",
+        description: `URL contains credentials or deceptive user-info (${parsed.userInfoString}@) in the authority section.`,
+        severity: "high",
+      });
+      warnings.push({
+        code: "USERINFO_IN_URL",
+        title: "User-Info Authority Pattern",
+        description: "The @ symbol in the URL authority section is used to confuse human readers about the actual host.",
+        severity: "high",
+      });
+      indicators.push("Deceptive user-info @ authority notation detected");
+    } else if (parsed.domainInfo.isIpAddress) {
+      structureScore = 10;
+      evidenceList.push({
+        dimension: "Structure & SSRF Defense",
+        pointsAwarded: 10,
+        maxPoints: 15,
+        title: "Numeric IP Address Host",
+        description: `Destination uses raw IP (${parsed.hostname}) instead of a verified registered domain.`,
+        severity: "medium",
+      });
+      warnings.push({
+        code: "RAW_IP_HOST",
+        title: "Raw IP Address Destination",
+        description: `URL routes directly to an IP address (${parsed.hostname}) rather than a named domain.`,
+        severity: "medium",
+      });
+      indicators.push(`Numeric IP host (${parsed.hostname}) bypasses DNS reputation`);
+    } else if (parsed.port && parsed.port !== "80" && parsed.port !== "443") {
+      structureScore = 5;
+      evidenceList.push({
+        dimension: "Structure & SSRF Defense",
+        pointsAwarded: 5,
+        maxPoints: 15,
+        title: "Non-Standard Web Port",
+        description: `URL targets uncommon web port :${parsed.port}.`,
+        severity: "low",
+      });
+    } else {
+      evidenceList.push({
+        dimension: "Structure & SSRF Defense",
+        pointsAwarded: 0,
+        maxPoints: 15,
+        title: "Standard URL Structure",
+        description: "Well-formed URL structure adhering to standard web protocols and ports.",
+        severity: "info",
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // DIMENSION 5: Domain Reputation & Threat Intelligence (0 - 15)
+    // ─────────────────────────────────────────────────────────────
+    let reputationScore = 0;
+    const isVerifiedPlatform = VERIFIED_TOP_TIER_PLATFORMS.has(parsed.domainInfo.registrableDomain);
+
+    if (parsed.isHighAbuseTld) {
+      // High-abuse TLD combined with brand spoofing or lures is high risk
+      if (brandScore > 0 || parsed.redirectAudit.hasNestedRedirect) {
+        reputationScore = 15;
+        evidenceList.push({
+          dimension: "Reputation & Telemetry",
+          pointsAwarded: 15,
+          maxPoints: 15,
+          title: "High-Abuse TLD Combined with Threat Pattern",
+          description: `Top-level domain (.${parsed.domainInfo.tld}) has extreme historical abuse rates for phishing campaigns.`,
+          severity: "high",
+        });
+        warnings.push({
+          code: "HIGH_ABUSE_TLD_COMPOUNDED",
+          title: "High-Risk TLD Compound Threat",
+          description: `The .${parsed.domainInfo.tld} TLD combined with deceptive structure indicates malicious intent.`,
+          severity: "high",
+        });
+        indicators.push(`High-abuse TLD (.${parsed.domainInfo.tld}) combined with suspicious patterns`);
+      } else {
+        reputationScore = 6;
+        evidenceList.push({
+          dimension: "Reputation & Telemetry",
+          pointsAwarded: 6,
+          maxPoints: 15,
+          title: "High-Abuse TLD Alert",
+          description: `Domain uses top-level domain (.${parsed.domainInfo.tld}) frequently observed in unsolicited spam.`,
+          severity: "low",
+        });
+      }
+    } else if (parsed.protocol === "http") {
+      // Unencrypted HTTP for sensitive contexts
+      reputationScore = 6;
+      evidenceList.push({
+        dimension: "Reputation & Telemetry",
+        pointsAwarded: 6,
+        maxPoints: 15,
+        title: "Unencrypted Connection (HTTP)",
+        description: "Cleartext HTTP lacks TLS encryption, susceptible to on-path interception.",
+        severity: "medium",
+      });
+      warnings.push({
+        code: "HTTP_UNENCRYPTED",
+        title: "Unencrypted Protocol (HTTP)",
+        description: "Communication is unencrypted. Login credentials or tokens can be intercepted.",
+        severity: "medium",
+      });
+      indicators.push("Cleartext HTTP protocol without TLS");
+    } else if (isVerifiedPlatform && brandScore === 0) {
+      reputationScore = 0;
+      evidenceList.push({
+        dimension: "Reputation & Telemetry",
+        pointsAwarded: 0,
+        maxPoints: 15,
+        title: "Verified Top-Tier Web Platform",
+        description: `Registrable domain (${parsed.domainInfo.registrableDomain}) belongs to verified top-tier infrastructure.`,
+        severity: "info",
+      });
+    } else {
+      reputationScore = 0;
+      evidenceList.push({
+        dimension: "Reputation & Telemetry",
+        pointsAwarded: 0,
+        maxPoints: 15,
+        title: "Reputation Telemetry Neutral",
+        description: "No negative blacklist hits; missing or standard reputation treated neutrally.",
+        severity: "info",
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // DIMENSION 6: Contextual Signals & Phishing Lures (0 - 5)
+    // ─────────────────────────────────────────────────────────────
+    let lureScore = 0;
+    const lowerPathAndQuery = (parsed.pathname + parsed.search).toLowerCase();
+    const matchedLures = CREDENTIAL_LURES.filter((l) => lowerPathAndQuery.includes(l));
+
+    // Only penalize credential lures if the domain is NOT a top-tier verified platform
+    if (matchedLures.length > 0 && !isVerifiedPlatform) {
+      lureScore = Math.min(5, matchedLures.length * 2);
+      evidenceList.push({
+        dimension: "Contextual Lures",
+        pointsAwarded: lureScore,
+        maxPoints: 5,
+        title: "Credential Harvesting Lure Keywords",
+        description: `Path/query contains sensitive lures: "${matchedLures.slice(0, 3).join(", ")}".`,
+        severity: "medium",
+      });
+      indicators.push(`Credential harvesting language detected: [${matchedLures.slice(0, 3).join(", ")}]`);
+    } else {
+      evidenceList.push({
+        dimension: "Contextual Lures",
+        pointsAwarded: 0,
+        maxPoints: 5,
+        title: "Clean Contextual Profile",
+        description: "No overt credential-harvesting keywords or urgency lures detected in path or parameters.",
+        severity: "info",
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // TOTAL RISK SCORE CALCULATION
+    // ─────────────────────────────────────────────────────────────
+    let totalRiskScore = brandScore + unicodeScore + redirectScore + structureScore + reputationScore + lureScore;
+
+    // Apply Verified Platform Dampener if domain is clean
+    if (isVerifiedPlatform && brandScore === 0 && unicodeScore === 0 && redirectScore === 0) {
+      totalRiskScore = Math.max(0, totalRiskScore - 5);
+    }
+
+    // Clamp between 0 and 100
+    totalRiskScore = Math.min(100, Math.max(0, Math.round(totalRiskScore)));
+    const authenticityScore = 100 - totalRiskScore;
+
+    // ─────────────────────────────────────────────────────────────
+    // THREAT CLASSIFICATION
+    // ─────────────────────────────────────────────────────────────
+    let threatLevel: ThreatClassification = "SAFE";
+    if (totalRiskScore >= RISK_THRESHOLDS.CRITICAL.min) {
+      threatLevel = "CRITICAL";
+    } else if (totalRiskScore >= RISK_THRESHOLDS.HIGH.min) {
+      threatLevel = "HIGH";
+    } else if (totalRiskScore >= RISK_THRESHOLDS.SUSPICIOUS.min) {
+      threatLevel = "SUSPICIOUS";
+    } else if (totalRiskScore >= RISK_THRESHOLDS.LOW.min) {
+      threatLevel = "LOW";
+    } else {
+      threatLevel = "SAFE";
+    }
+
+    // Threat Type Classification
+    let threatType = "SAFE";
+    if (parsed.ssrfTarget) {
+      threatType = "SSRF_PROHIBITED";
+    } else if (parsed.brandAudit.isImpersonating) {
+      threatType = "BRAND_IMPERSONATION";
+    } else if (parsed.homoglyphAudit.hasHomoglyphSpoof) {
+      threatType = "HOMOGRAPH_PHISHING";
+    } else if (parsed.redirectAudit.hasNestedRedirect) {
+      threatType = "MALICIOUS_REDIRECT";
+    } else if (totalRiskScore >= 40) {
+      threatType = "SUSPICIOUS_URL";
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // EXECUTIVE REASONING SYNTHESIS
+    // ─────────────────────────────────────────────────────────────
+    let reasoning = "";
+    if (threatLevel === "CRITICAL" || threatLevel === "HIGH") {
+      const topEvidence = evidenceList
+        .filter((e) => e.pointsAwarded > 0)
+        .sort((a, b) => b.pointsAwarded - a.pointsAwarded)[0];
+      reasoning = `High-probability threat detected (${totalRiskScore}/100 Risk Score). Primary driver: ${topEvidence ? topEvidence.title : "Deceptive URL features"}. Not safe for end-user interaction.`;
+    } else if (threatLevel === "SUSPICIOUS") {
+      reasoning = `Elevated risk signals detected (${totalRiskScore}/100 Risk Score). The URL uses ambiguous masking, unencrypted protocols, or redirect parameters. Proceed with caution.`;
+    } else if (threatLevel === "LOW") {
+      reasoning = `Low risk profile (${totalRiskScore}/100 Risk Score). Minor non-standard parameters or shortening observed, but no active brand spoofing or homoglyph attacks identified.`;
+    } else {
+      reasoning = `Verified Clean (${totalRiskScore}/100 Risk Score). Destination structure matches expected canonical web standards with no detected spoofing or malicious redirects.`;
+    }
+
+    // Measurement Confidence (Evidence Depth)
+    let confidence = 75;
+    if (parsed.domainInfo.registrableDomain) confidence += 10;
+    if (parsed.redirectAudit.hasNestedRedirect !== undefined) confidence += 5;
+    if (indicators.length > 0) confidence += 5;
+    confidence = Math.min(98, confidence);
+
+    const scoreBreakdown: ScoreBreakdown = {
+      brandImpersonationScore: brandScore,
+      unicodeConfusableScore: unicodeScore,
+      redirectRiskScore: redirectScore,
+      urlStructureScore: structureScore,
+      domainReputationScore: reputationScore,
+      contextualLureScore: lureScore,
+      totalRiskScore,
+    };
+
+    return {
+      riskScore: totalRiskScore,
+      authenticityScore,
+      threatLevel,
+      confidence,
+      threatType,
+      reasoning,
+      indicators: indicators.length > 0 ? indicators : ["Standard canonical structure", "Clean lexical profile"],
+      scoreBreakdown,
+      signalEvidence: evidenceList,
+      warnings,
+    };
+  }
+}

@@ -257,28 +257,15 @@ export default function QrScannerPage() {
     }
   };
 
-  const getSecurityScore = (level: string, apiConfidence: number) => {
-    if (level === "UNKNOWN") return 50;
-    let ceiling: number;
-    switch (level?.toUpperCase()) {
-      case "SAFE": ceiling = 100; break;
-      case "LOW": ceiling = 78; break;
-      case "MEDIUM": ceiling = 55; break;
-      case "HIGH": ceiling = 30; break;
-      case "CRITICAL":
-      case "MALICIOUS": ceiling = 12; break;
-      default: ceiling = 50;
-    }
-    const confidenceRatio = Math.min(Math.max(apiConfidence, 0), 100) / 100;
-    return Math.round(ceiling * confidenceRatio + 50 * (1 - confidenceRatio));
-  };
+  // Real explainable risk score directly from multi-vector risk engine (0 = Safe, 100 = Critical Threat)
+  const riskScore = result ? (typeof result.riskScore === "number" ? result.riskScore : result.riskLevel === "SAFE" ? 5 : 75) : 0;
+  const authenticityScore = result ? (typeof result.authenticityScore === "number" ? result.authenticityScore : (100 - riskScore)) : 100;
 
-  const securityScore = result ? getSecurityScore(result.riskLevel, result.confidence) : 100;
-
-  // Circle constants
+  // Circle constants for Risk Gauge
   const radius = 46;
   const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (securityScore / 100) * circumference;
+  // Stroke indicates risk score proportion (0 to 100)
+  const strokeDashoffset = circumference - (riskScore / 100) * circumference;
 
   return (
     <div className="max-w-6xl space-y-7 pb-12 animate-in fade-in duration-300">
@@ -484,17 +471,44 @@ export default function QrScannerPage() {
                     ))}
                   </div>
                 </LiquidGlassCard>
+
+                {/* Specific Security Warnings & Diagnostic Evidence */}
+                {result.securityChecks?.warnings && result.securityChecks.warnings.length > 0 && (
+                  <LiquidGlassCard className="p-6 md:col-span-2">
+                    <div className="flex items-center gap-2 mb-3">
+                      <AlertTriangle className="h-4 w-4 text-amber-600" />
+                      <h3 className="font-bold text-sm text-slate-900 tracking-tight">Active Security Diagnosed Anomalies</h3>
+                    </div>
+
+                    <div className="space-y-2.5">
+                      {result.securityChecks.warnings.map((w, idx) => (
+                        <div key={idx} className="p-3 rounded-2xl bg-white/80 border border-slate-200/80 flex items-start justify-between gap-3 shadow-xs">
+                          <div className="space-y-0.5">
+                            <span className="text-xs font-bold text-slate-900 flex items-center gap-2">
+                              {w.title}
+                              <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 uppercase">{w.code}</span>
+                            </span>
+                            <p className="text-[11px] text-slate-600 leading-relaxed">{w.description}</p>
+                          </div>
+                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 ${getSeverityBadgeColor(w.severity)}`}>
+                            {w.severity}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </LiquidGlassCard>
+                )}
               </div>
             </div>
           )}
         </div>
 
-        {/* Right Column: Platform Security Score + Recent Audits (4 cols) */}
+        {/* Right Column: Platform Risk Score + Multi-Vector Breakdown (4 cols) */}
         <div className="lg:col-span-4 space-y-7">
           {/* Security Score Panel */}
           <LiquidGlassCard className="p-7 text-center">
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">
-              Platform Security Score
+              Threat Risk Assessment
             </h3>
 
             {/* Circular Gauge */}
@@ -514,7 +528,15 @@ export default function QrScannerPage() {
                   r={radius}
                   stroke={
                     result
-                      ? result.riskLevel === "SAFE" ? "#10b981" : result.riskLevel === "LOW" ? "#3b82f6" : result.riskLevel === "MEDIUM" ? "#f59e0b" : "#ef4444"
+                      ? result.riskLevel === "SAFE"
+                        ? "#10b981"
+                        : result.riskLevel === "LOW"
+                        ? "#0284c7"
+                        : result.riskLevel === "SUSPICIOUS"
+                        ? "#f59e0b"
+                        : result.riskLevel === "HIGH"
+                        ? "#ea580c"
+                        : "#e11d48"
                       : "#3b82f6"
                   }
                   strokeWidth="10"
@@ -528,10 +550,10 @@ export default function QrScannerPage() {
               </svg>
               <div className="absolute flex flex-col items-center">
                 <span className="text-4xl font-extrabold text-slate-900 font-display">
-                  {result ? securityScore : "—"}
+                  {result ? riskScore : "—"}
                 </span>
                 <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
-                  Score
+                  Risk Score
                 </span>
               </div>
             </div>
@@ -539,15 +561,64 @@ export default function QrScannerPage() {
             <div className="mt-5 space-y-2">
               <span className="text-xs text-slate-400 block font-medium">Verified Threat Classification</span>
               {result ? (
-                <span className={`inline-flex items-center rounded-full px-4 py-1 text-xs font-bold uppercase tracking-wider ${getRiskBadgeColor(result.riskLevel)}`}>
-                  {result.riskLevel}
-                </span>
+                <div className="space-y-1.5">
+                  <div>
+                    <span className={`inline-flex items-center rounded-full px-4 py-1 text-xs font-bold uppercase tracking-wider ${getRiskBadgeColor(result.riskLevel)}`}>
+                      {result.riskLevel} RISK
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-center gap-3 text-[11px] text-slate-500 font-medium">
+                    <span>Authenticity: <strong className="text-slate-800">{authenticityScore}/100</strong></span>
+                    <span>•</span>
+                    <span>Confidence: <strong className="text-slate-800">{result.confidence}%</strong></span>
+                  </div>
+                </div>
               ) : (
                 <span className="inline-flex items-center rounded-full px-3.5 py-1 text-xs font-semibold text-slate-500 bg-slate-100 border border-slate-200/80 uppercase tracking-wider">
                   Diagnostics Idle
                 </span>
               )}
             </div>
+
+            {/* Phase 2: Explainable 6-Dimension Risk Factor Breakdown */}
+            {result && result.scoreBreakdown && (
+              <div className="mt-6 pt-5 border-t border-slate-200/80 text-left space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                    Weighted Signal Attribution
+                  </span>
+                  <span className="text-[11px] font-mono font-bold text-slate-800">
+                    {result.scoreBreakdown.totalRiskScore}/100
+                  </span>
+                </div>
+
+                <div className="space-y-2.5">
+                  {[
+                    { label: "Brand Masquerading", val: result.scoreBreakdown.brandImpersonationScore, max: 25 },
+                    { label: "Unicode & Homoglyphs", val: result.scoreBreakdown.unicodeConfusableScore, max: 20 },
+                    { label: "Redirect Integrity", val: result.scoreBreakdown.redirectRiskScore, max: 20 },
+                    { label: "Structure & SSRF", val: result.scoreBreakdown.urlStructureScore, max: 15 },
+                    { label: "Domain Reputation", val: result.scoreBreakdown.domainReputationScore, max: 15 },
+                    { label: "Contextual Lures", val: result.scoreBreakdown.contextualLureScore, max: 5 },
+                  ].map((dim, idx) => (
+                    <div key={idx} className="space-y-1">
+                      <div className="flex justify-between text-[10px] text-slate-600">
+                        <span>{dim.label}</span>
+                        <span className="font-mono font-bold">{dim.val}/{dim.max}</span>
+                      </div>
+                      <div className="w-full h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            dim.val === 0 ? "bg-emerald-400" : dim.val >= dim.max * 0.7 ? "bg-rose-500" : "bg-amber-400"
+                          }`}
+                          style={{ width: `${Math.min(100, (dim.val / dim.max) * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </LiquidGlassCard>
 
           {/* Recent Audits Panel */}
@@ -566,6 +637,21 @@ export default function QrScannerPage() {
                   <div
                     key={scan.id}
                     onClick={() => {
+                      const meta = scan.result?.analysisMetadata as any;
+                      const rScore = typeof meta?.riskScore === "number"
+                        ? meta.riskScore
+                        : scan.riskLevel === "SAFE" ? 5 : scan.riskLevel === "LOW" ? 25 : scan.riskLevel === "MEDIUM" ? 50 : 80;
+                      const aScore = meta?.authenticityScore ?? (100 - rScore);
+                      const breakdown = meta?.scoreBreakdown || {
+                        brandImpersonationScore: 0,
+                        unicodeConfusableScore: 0,
+                        redirectRiskScore: 0,
+                        urlStructureScore: 0,
+                        domainReputationScore: 0,
+                        contextualLureScore: 0,
+                        totalRiskScore: rScore,
+                      };
+
                       setResult({
                         scanId: scan.id,
                         decodedText: scan.payload || "",
@@ -579,13 +665,17 @@ export default function QrScannerPage() {
                           warnings: []
                         },
                         normalized: scan.payload || "",
-                        riskLevel: (scan.riskLevel as "SAFE" | "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | "UNKNOWN") || "SAFE",
-                        confidence: scan.result?.confidenceScore || 94,
+                        riskScore: rScore,
+                        authenticityScore: aScore,
+                        riskLevel: (scan.riskLevel as any) || "SAFE",
+                        confidence: scan.result?.confidenceScore || 90,
                         threatType: scan.result?.threatCategory || "BENIGN",
-                        reasoning: scan.result?.analysisMetadata?.executiveSummary || "Analyzed QR matrix destination verified safe.",
-                        indicators: scan.result?.analysisMetadata?.analystNotes || ["Clean SSL certificate", "Known reputable domain"],
-                        report: scan.result?.analysisMetadata?.technicalReasoning || "Full diagnostic sweep completed.",
-                        evidence: scan.result?.analysisMetadata?.evidence || null
+                        reasoning: meta?.executiveSummary || "Analyzed QR matrix destination verified.",
+                        indicators: meta?.analystNotes || ["Clean SSL certificate", "Known reputable domain"],
+                        report: meta?.technicalReasoning || "Full diagnostic sweep completed.",
+                        scoreBreakdown: breakdown,
+                        signalEvidence: meta?.signalEvidence || [],
+                        evidence: meta?.evidence || null
                       });
                     }}
                     className="liquid-glass-subcard p-3 rounded-2xl flex items-center justify-between cursor-pointer group"

@@ -1,7 +1,9 @@
 import dns from "node:dns/promises";
 import https from "node:https";
 import http from "node:http";
+import net from "node:net";
 import { whoisRegistry } from "../whois/registry";
+import { URLSecurityAnalyzer } from "@/modules/scanner/qr/services/url-security";
 
 export interface URLEvidence {
   whois?: Record<string, unknown> | null;
@@ -11,11 +13,27 @@ export interface URLEvidence {
   redirects?: string[];
   finalUrl?: string;
   statusCode?: number;
+  ssrfProtected?: boolean;
 }
 
 export class EvidenceGatherer {
   static async gather(normalizedUrl: string, hostname: string): Promise<URLEvidence> {
     const evidence: URLEvidence = { redirects: [] };
+
+    // 0. SSRF Safety Check: Block private, loopback, link-local, and cloud metadata targets
+    const isDirectPrivate = URLSecurityAnalyzer.isPrivateOrLoopbackIp(hostname);
+    const isLocalhostAlias =
+      hostname === "localhost" ||
+      hostname.endsWith(".localhost") ||
+      hostname.endsWith(".local") ||
+      hostname.endsWith(".internal") ||
+      hostname === "metadata.google.internal";
+
+    if (isDirectPrivate || isLocalhostAlias) {
+      evidence.ssrfProtected = true;
+      evidence.headers = { "x-sentinel-ssrf-block": "Prohibited private or loopback destination. Network scan aborted." };
+      return evidence;
+    }
 
     // 1. Concurrent DNS Lookups
     try {
@@ -25,9 +43,22 @@ export class EvidenceGatherer {
         dns.resolveMx(hostname),
         dns.resolveTxt(hostname),
       ]);
+
+      const resolvedA = a.status === 'fulfilled' ? a.value : [];
+      const resolvedAaaa = aaaa.status === 'fulfilled' ? aaaa.value : [];
+
+      // Defend against DNS rebinding / private resolution
+      const allIps = [...resolvedA, ...resolvedAaaa];
+      const hasPrivateIp = allIps.some((ip) => URLSecurityAnalyzer.isPrivateOrLoopbackIp(ip));
+      if (hasPrivateIp) {
+        evidence.ssrfProtected = true;
+        evidence.headers = { "x-sentinel-ssrf-block": "DNS resolution returned prohibited internal IP. Network probe blocked." };
+        return evidence;
+      }
+
       evidence.dns = {
-        a: a.status === 'fulfilled' ? a.value : [],
-        aaaa: aaaa.status === 'fulfilled' ? aaaa.value : [],
+        a: resolvedA,
+        aaaa: resolvedAaaa,
         mx: mx.status === 'fulfilled' ? mx.value : [],
         txt: txt.status === 'fulfilled' ? txt.value : [],
       };
@@ -91,6 +122,22 @@ export class EvidenceGatherer {
             const urlObj = new URL(url);
             nextUrl = `${urlObj.protocol}//${urlObj.host}${nextUrl.startsWith("/") ? "" : "/"}${nextUrl}`;
           }
+
+          // SSRF defense on redirect hop
+          try {
+            const nextHost = new URL(nextUrl).hostname;
+            if (URLSecurityAnalyzer.isPrivateOrLoopbackIp(nextHost) || nextHost === "localhost" || nextHost.endsWith(".internal")) {
+              evidence.redirects?.push(`${nextUrl} [BLOCKED: SSRF/Private Target]`);
+              res.resume();
+              resolve();
+              return;
+            }
+          } catch {
+            res.resume();
+            resolve();
+            return;
+          }
+
           evidence.redirects?.push(nextUrl);
           
           res.resume(); // consume response data to free up memory

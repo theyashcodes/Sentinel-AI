@@ -2,7 +2,7 @@ export interface QRScanWarning {
   code: string;
   title: string;
   description: string;
-  severity: "low" | "medium" | "high";
+  severity: "low" | "medium" | "high" | "critical";
 }
 
 export interface QRScanSecurityCheckResult {
@@ -11,6 +11,10 @@ export interface QRScanSecurityCheckResult {
   isUnicodeSpoof: boolean;
   isHttp: boolean;
   isSuspiciousTld: boolean;
+  isSsrfTarget?: boolean;
+  hasNestedRedirect?: boolean;
+  hasUserInfo?: boolean;
+  hasBrandMismatch?: boolean;
   warnings: QRScanWarning[];
 }
 
@@ -41,7 +45,30 @@ export interface QREvidence {
   redirects?: string[];
   finalUrl?: string;
   statusCode?: number;
+  staticRedirectCandidate?: string | null;
+  ssrfProtected?: boolean;
 }
+
+export interface ScoreBreakdown {
+  brandImpersonationScore: number; // 0 - 25
+  unicodeConfusableScore: number;  // 0 - 20
+  redirectRiskScore: number;       // 0 - 20
+  urlStructureScore: number;       // 0 - 15
+  domainReputationScore: number;   // 0 - 15
+  contextualLureScore: number;     // 0 - 5
+  totalRiskScore: number;          // 0 - 100
+}
+
+export interface SignalEvidenceItem {
+  dimension: string;
+  pointsAwarded: number;
+  maxPoints: number;
+  title: string;
+  description: string;
+  severity: "info" | "low" | "medium" | "high" | "critical";
+}
+
+export type ThreatClassification = "SAFE" | "LOW" | "SUSPICIOUS" | "HIGH" | "CRITICAL" | "UNKNOWN";
 
 export interface QRScanResponse {
   scanId: string;
@@ -49,13 +76,17 @@ export interface QRScanResponse {
   extractedUrl: string;
   securityChecks: QRScanSecurityCheckResult;
   normalized: string;
-  riskLevel: "SAFE" | "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | "UNKNOWN";
-  confidence: number;
+  riskScore: number; // 0 - 100 (higher = more danger)
+  authenticityScore: number; // 0 - 100 (100 - riskScore)
+  riskLevel: ThreatClassification;
+  confidence: number; // 0 - 100 (justified measurement confidence)
   threatType: string;
   reasoning: string;
   indicators: string[];
   report: string;
+  scoreBreakdown: ScoreBreakdown;
+  signalEvidence: SignalEvidenceItem[];
   evidence?: QREvidence | null;
+  mlProbability?: Record<string, number>;
   createdAt?: string;
 }
-
