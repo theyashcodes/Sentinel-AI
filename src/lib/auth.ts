@@ -14,6 +14,13 @@ export const auth = betterAuth({
     database: prismaAdapter(db, {
         provider: "postgresql",
     }),
+    account: {
+        accountLinking: {
+            enabled: true,
+            trustedProviders: ["google"],
+            requireLocalEmailVerified: false,
+        },
+    },
     plugins: [
         emailOTP({
             async sendVerificationOTP({ email, otp, type }) {
