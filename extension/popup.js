@@ -3,6 +3,34 @@ const API_URL = "http://localhost:3000/api/extension/scan";
 
 document.addEventListener("DOMContentLoaded", async () => {
   const contentEl = document.getElementById("content");
+  const alarmSoundToggle = document.getElementById("alarmSoundToggle");
+  const testAlarmBtn = document.getElementById("testAlarmBtn");
+
+  // Load alarm sound preference
+  if (alarmSoundToggle && chrome.storage?.local) {
+    chrome.storage.local.get({ alarmSoundEnabled: true }, (prefs) => {
+      alarmSoundToggle.checked = prefs.alarmSoundEnabled;
+    });
+
+    alarmSoundToggle.addEventListener("change", () => {
+      chrome.storage.local.set({ alarmSoundEnabled: alarmSoundToggle.checked });
+    });
+  }
+
+  // Handle test alarm siren button
+  if (testAlarmBtn) {
+    testAlarmBtn.addEventListener("click", () => {
+      testAlarmBtn.textContent = "⚡ Playing Alert Siren...";
+      testAlarmBtn.style.opacity = "0.7";
+
+      chrome.runtime.sendMessage({ action: "TEST_ALARM_SOUND" }, (res) => {
+        setTimeout(() => {
+          testAlarmBtn.textContent = "🔊 Test Threat Alarm Sound / अलार्म टेस्ट करें";
+          testAlarmBtn.style.opacity = "1";
+        }, 1500);
+      });
+    });
+  }
 
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
