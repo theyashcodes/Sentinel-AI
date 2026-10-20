@@ -11,6 +11,7 @@ export async function POST(req: NextRequest) {
     const toolLabels: Record<string, string> = {
       tracer: "Redirect Tracer & Homoglyph Detector",
       forensics: "AI Media Forensics (C2PA & Spectral FFT)",
+      voice: "AI Voice Clone & Audio Deepfake Forensics",
       email: "Phishing Email Dissector (SPF/DKIM/DMARC)",
       scanner: "URL Threat Scanner",
       qr: "QR Phishing Scanner",

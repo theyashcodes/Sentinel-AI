@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Search, QrCode, GitFork, Fingerprint, Mail, Shield, History, ArrowRight } from "lucide-react";
+import { Search, QrCode, GitFork, Fingerprint, Mic, Mail, Shield, History, ArrowRight } from "lucide-react";
 
 const operations = [
   {
@@ -31,6 +31,13 @@ const operations = [
     description: "Dissect C2PA Content Credentials, SynthID, and extract GenAI prompts.",
     href: "/dashboard/forensics",
     icon: Fingerprint,
+  },
+  {
+    id: "voice-protocol",
+    title: "AI Voice Clone Detector",
+    description: "Detect synthetic voices, ElevenLabs/RVC deepfakes, and pitch micro-jitter anomalies.",
+    href: "/dashboard/voice-forensics",
+    icon: Mic,
   },
   {
     id: "email-protocol",

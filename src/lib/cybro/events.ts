@@ -1,5 +1,5 @@
 export interface ScanEventDetail {
-  tool: "tracer" | "forensics" | "email" | "scanner" | "qr";
+  tool: "tracer" | "forensics" | "email" | "scanner" | "qr" | "voice";
   toolName?: string;
   target: string;
   isThreat: boolean;
