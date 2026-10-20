@@ -21,9 +21,9 @@ export default async function DashboardPage() {
   if (!session) redirect("/auth/sign-in");
 
   const user = session.user;
-  const firstName = user?.name?.split(" ")[0] || "Yash";
+  const firstName = user?.name ? user.name.split(" ")[0] : (user?.email?.split("@")[0] || "User");
 
-  // 100% REAL queries from PostgreSQL via Prisma — ZERO fake fallbacks
+  // 100% REAL queries from PostgreSQL via Prisma scoped to the logged-in user
   let totalScans = 0;
   let criticalThreats = 0;
   let safeScans = 0;
@@ -33,6 +33,7 @@ export default async function DashboardPage() {
   let recentScans: ScanItem[] = [];
 
   try {
+    const userWhere = { userId: user.id };
     const [
       totalCount,
       critCount,
@@ -42,13 +43,14 @@ export default async function DashboardPage() {
       qrCount,
       dbScans,
     ] = await Promise.all([
-      db.scan.count().catch(() => 0),
-      db.scan.count({ where: { riskLevel: { in: ["CRITICAL", "HIGH"] } } }).catch(() => 0),
-      db.scan.count({ where: { riskLevel: { in: ["SAFE", "LOW"] } } }).catch(() => 0),
-      db.scan.count({ where: { riskLevel: "MEDIUM" } }).catch(() => 0),
-      db.scan.count({ where: { type: "URL" } }).catch(() => 0),
-      db.scan.count({ where: { type: "QR" } }).catch(() => 0),
+      db.scan.count({ where: userWhere }).catch(() => 0),
+      db.scan.count({ where: { ...userWhere, riskLevel: { in: ["CRITICAL", "HIGH"] } } }).catch(() => 0),
+      db.scan.count({ where: { ...userWhere, riskLevel: { in: ["SAFE", "LOW"] } } }).catch(() => 0),
+      db.scan.count({ where: { ...userWhere, riskLevel: "MEDIUM" } }).catch(() => 0),
+      db.scan.count({ where: { ...userWhere, type: "URL" } }).catch(() => 0),
+      db.scan.count({ where: { ...userWhere, type: "QR" } }).catch(() => 0),
       db.scan.findMany({
+        where: userWhere,
         take: 6,
         orderBy: { createdAt: "desc" },
         select: {

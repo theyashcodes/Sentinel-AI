@@ -1,6 +1,9 @@
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { db } from "@/lib/db";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { History, Search, QrCode, ExternalLink } from "lucide-react";
 import { Metadata } from "next";
 import Link from "next/link";
@@ -22,10 +25,16 @@ function formatDateTime(date: Date): string {
 }
 
 export default async function HistoryPage() {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) redirect("/auth/sign-in");
+
   let scans: any[] = [];
 
   try {
     scans = await db.scan.findMany({
+      where: {
+        userId: session.user.id,
+      },
       orderBy: { createdAt: "desc" },
       include: {
         result: true,

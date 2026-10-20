@@ -3,14 +3,26 @@ import { URLScanRequestSchema, UrlNormalizer } from "@/lib/scanner/url/normalize
 import { EvidenceGatherer } from "@/lib/scanner/url/gatherer";
 import { MLInferenceService } from "@/lib/ml/client";
 import { db } from "@/lib/db";
+import { auth } from "@/lib/auth";
 import crypto from "crypto";
 
 export async function POST(req: NextRequest) {
   let payloadHash = "";
   let ipHash = "";
   let normalizedUrl = "Unknown URL";
+  let userId: string | null = null;
 
   try {
+    // Authenticate user via session if present
+    try {
+      const session = await auth.api.getSession({ headers: req.headers });
+      if (session) {
+        userId = session.user.id;
+      }
+    } catch {
+      // unauthenticated scan (e.g. public API or extension without cookie)
+    }
+
     const body = await req.json();
     const parseResult = URLScanRequestSchema.safeParse(body);
 
@@ -58,6 +70,8 @@ export async function POST(req: NextRequest) {
             riskLevel: mlVerdict.riskLevel,
             payloadHash,
             ipHash,
+            userId,
+            payload: normalized.normalized,
           },
         });
 
