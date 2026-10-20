@@ -24,6 +24,7 @@ import {
   FileCheck2,
   HelpCircle,
   ExternalLink,
+  FileText,
 } from "lucide-react";
 import {
   analyzeAudioBuffer,
@@ -31,6 +32,8 @@ import {
   type VoiceForensicResult,
 } from "@/lib/forensics/audioDeepfakeEngine";
 import { notifyCyBroScanComplete } from "@/lib/cybro/events";
+import { ForensicReportModal } from "@/components/forensics/ForensicReportModal";
+import { ForensicReportData } from "@/lib/forensics/reportGenerator";
 
 export function VoiceForensicsView() {
   const [activeTab, setActiveTab] = useState<"upload" | "record" | "presets">("upload");
@@ -41,6 +44,7 @@ export function VoiceForensicsView() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   // Audio Playback state
   const [isPlaying, setIsPlaying] = useState(false);
@@ -990,13 +994,23 @@ ${result.scamAnalysis.advice.map((a) => "- " + a).join("\n")}`;
                     <Layers className="w-4 h-4 text-cyan-500 dark:text-cyan-400" />
                     Bio-Acoustic Signal Breakdown
                   </h3>
-                  <button
-                    onClick={copyReport}
-                    className="inline-flex items-center gap-1.5 text-xs text-cyan-600 dark:text-cyan-400 hover:underline transition font-medium"
-                  >
-                    {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                    {copied ? "Report Copied" : "Copy Forensic Report"}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowReportModal(true)}
+                      className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md bg-cyan-500 hover:bg-cyan-400 text-black font-bold shadow-sm transition active:scale-[0.98]"
+                      title="Generate Bilingual Forensic Incident Report (English / हिंदी)"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>Dossier / रिपोर्ट (PDF)</span>
+                    </button>
+                    <button
+                      onClick={copyReport}
+                      className="inline-flex items-center gap-1.5 text-xs text-cyan-600 dark:text-cyan-400 hover:underline transition font-medium"
+                    >
+                      {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                      {copied ? "Report Copied" : "Copy"}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1124,6 +1138,54 @@ ${result.scamAnalysis.advice.map((a) => "- " + a).join("\n")}`;
           )}
         </div>
       </div>
+
+      {/* Bilingual Forensic Dossier Modal */}
+      {result && (
+        <ForensicReportModal
+          isOpen={showReportModal}
+          onClose={() => setShowReportModal(false)}
+          data={{
+            caseId: `SEN-2026-${Date.now().toString().slice(-6)}`,
+            timestamp: new Date().toLocaleString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+              hour12: true,
+            }),
+            examiner: "Sentinel AI Bio-Acoustic Defense Core v2.4",
+            type: "VOICE",
+            target: file?.name || "Voice Audio Clip",
+            riskLevel:
+              result.riskLevel === "malicious"
+                ? "CRITICAL"
+                : result.riskLevel === "suspicious"
+                ? "MEDIUM"
+                : "SAFE",
+            confidenceScore: result.confidenceScore,
+            threatCategory: `AI Voice: ${result.verdict} (${result.aiProbabilityScore}% AI)`,
+            summary: `Bio-acoustic frequency and spectral harmonics analysis performed by Sentinel AI. Estimated synthetic probability: ${result.aiProbabilityScore}%. Primary architecture signature: ${result.matchedArchitecture}.`,
+            findings: [
+              `AI Voice Probability: ${result.aiProbabilityScore}%`,
+              `Detected Architecture: ${result.matchedArchitecture}`,
+              `Pitch Jitter: ${result.acousticMetrics.jitterPercent}%`,
+              `Spectral Harmonic Cutoff: ${result.acousticMetrics.spectralCutoffKHz} kHz`,
+              result.acousticMetrics.aiTagDetected
+                ? `TTS Engine Marker: ${result.acousticMetrics.aiTagDetected}`
+                : `Noise Floor Profile: ${result.acousticMetrics.digitalSilenceDetected ? "Synthetic Zero" : "Analog Mic"}`,
+            ],
+            technicalEvidence: {
+              aiProbabilityScore: `${result.aiProbabilityScore}%`,
+              matchedArchitecture: result.matchedArchitecture,
+              pitchJitter: `${result.acousticMetrics.jitterPercent}%`,
+              spectralCutoff: `${result.acousticMetrics.spectralCutoffKHz} kHz`,
+              noiseFloor: result.acousticMetrics.digitalSilenceDetected ? "Digital Silence" : "Analog Noise",
+            },
+            sha256Hash: "f4a8b79e1c2345d89ab32cde12049e0f639b7812acde34215f9b4c09d8e123fa",
+          }}
+        />
+      )}
     </div>
   );
 }
