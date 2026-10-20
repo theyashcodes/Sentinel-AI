@@ -776,20 +776,21 @@ export function SettingsView() {
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                       <div
                         style={{
-                          width: "58px",
-                          height: "58px",
+                          width: "66px",
+                          height: "66px",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
                           backgroundColor: "#030712",
-                          borderRadius: "14px",
-                          border: `1px solid ${skin.accent}40`,
+                          borderRadius: "16px",
+                          border: `1.5px solid ${skin.accent}50`,
+                          boxShadow: `inset 0 0 12px ${skin.accent}15`,
                         }}
                       >
-                        <CyBroAvatar size={46} skin={skin.id} mood={isSelected ? "happy" : "idle"} />
+                        <CyBroAvatar size={54} skin={skin.id} mood={isSelected ? "happy" : "idle"} />
                       </div>
 
-                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px" }}>
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "5px" }}>
                         <span
                           style={{
                             fontSize: "9px",
@@ -803,6 +804,16 @@ export function SettingsView() {
                           }}
                         >
                           {skin.tag}
+                        </span>
+
+                        <span
+                          style={{
+                            fontSize: "9px",
+                            color: "var(--muted)",
+                            fontFamily: "monospace",
+                          }}
+                        >
+                          {skin.silhouette}
                         </span>
 
                         {isSelected && (
@@ -824,7 +835,7 @@ export function SettingsView() {
 
                     {/* Info */}
                     <div>
-                      <h4 style={{ fontSize: "13.5px", fontWeight: 600, color: "var(--ink)", margin: 0 }}>
+                      <h4 style={{ fontSize: "14px", fontWeight: 600, color: "var(--ink)", margin: 0 }}>
                         {skin.name}
                       </h4>
                       <p style={{ fontSize: "11.5px", color: "var(--muted)", margin: "0.25rem 0 0 0", lineHeight: 1.4 }}>

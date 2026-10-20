@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 
 export type CyBroMood = "idle" | "happy" | "angry" | "smug" | "thinking";
-export type CyBroSkin = "classic" | "matrix" | "mecha" | "gold" | "phantom" | "kawaii";
+export type CyBroSkin = "classic" | "matrix" | "mecha" | "gold" | "kawaii" | "phantom";
 
 export interface CyBroSkinInfo {
   id: CyBroSkin;
@@ -11,57 +11,57 @@ export interface CyBroSkinInfo {
   tag: string;
   desc: string;
   accent: string;
-  bgGradient: string;
+  silhouette: string;
 }
 
 export const CYBRO_SKINS: CyBroSkinInfo[] = [
   {
     id: "classic",
-    name: "Classic Sentinel",
-    tag: "DEFAULT",
-    desc: "Iconic cyan cyber companion with OLED optics & dual cyber antennas",
+    name: "Classic Astro Bot",
+    tag: "RETRO BOT",
+    desc: "Rounded TV-head with OLED pill eyes & glowing beacon antenna",
     accent: "#38BDF8",
-    bgGradient: "linear-gradient(180deg, #1E293B 0%, #0F172A 100%)",
+    silhouette: "TV-Head Capsule",
   },
   {
     id: "matrix",
     name: "Neo Matrix Hacker",
-    tag: "TERMINAL",
-    desc: "Underground phosphor-green terminal hacker with code stream scanner",
+    tag: "CYBERPUNK",
+    desc: "Hexagonal skull chassis with sweeping terminal visor beam & twin dipoles",
     accent: "#22C55E",
-    bgGradient: "linear-gradient(180deg, #052E16 0%, #022C22 100%)",
+    silhouette: "Hex Skull Visor",
   },
   {
     id: "mecha",
     name: "Mecha Overlord",
-    tag: "TACTICAL",
-    desc: "Carbon obsidian chassis with sharp predator horns & ruby combat overdrive",
+    tag: "GUNDAM TITAN",
+    desc: "Titan combat armor with iconic golden V-Fin horns & predator slit optics",
     accent: "#EF4444",
-    bgGradient: "linear-gradient(180deg, #27272A 0%, #18181B 100%)",
+    silhouette: "V-Fin Combat Armor",
   },
   {
     id: "gold",
     name: "Golden Sovereign",
-    tag: "LUXURY",
-    desc: "Polished obsidian chassis crowned with 24K gold cyber plating & solar optics",
+    tag: "CYCLOPS LUXURY",
+    desc: "24K gold halo dome featuring a high-tech aperture cyclops lens",
     accent: "#F59E0B",
-    bgGradient: "linear-gradient(180deg, #292524 0%, #1C1917 100%)",
-  },
-  {
-    id: "phantom",
-    name: "Ghost Spec-Ops",
-    tag: "STEALTH",
-    desc: "Covert reconnaissance chassis with ultraviolet spectral visor & stealth fins",
-    accent: "#A855F7",
-    bgGradient: "linear-gradient(180deg, #2E1065 0%, #0F0728 100%)",
+    silhouette: "Pharaoh Cyclops Core",
   },
   {
     id: "kawaii",
     name: "Neko Cyberpunk",
-    tag: "ANIME",
-    desc: "Playful street-smart cyber kitten with glowing neon cat ears & pastel visor",
+    tag: "CHIBI CAT",
+    desc: "Chibi cat bot with glowing triangular Neko ears, anime star eyes & :3 mouth",
     accent: "#EC4899",
-    bgGradient: "linear-gradient(180deg, #3B0764 0%, #1E112A 100%)",
+    silhouette: "Tri-Cat Chibi Ears",
+  },
+  {
+    id: "phantom",
+    name: "Ghost Spec-Ops",
+    tag: "TRI-EYE STEALTH",
+    desc: "Covert aerodynamic stealth drone with 3 tactical ultraviolet sensor optics",
+    accent: "#A855F7",
+    silhouette: "Tri-Sensor Stealth",
   },
 ];
 
@@ -118,8 +118,8 @@ export function CyBroAvatar({
 
     const blinkInterval = setInterval(() => {
       setIsBlinking(true);
-      setTimeout(() => setIsBlinking(false), 170);
-    }, 3800);
+      setTimeout(() => setIsBlinking(false), 160);
+    }, 3600);
 
     return () => clearInterval(blinkInterval);
   }, [currentMood]);
@@ -136,8 +136,8 @@ export function CyBroAvatar({
       const dy = e.clientY - avatarCenterY;
       const dist = Math.sqrt(dx * dx + dy * dy) || 1;
 
-      const maxDist = currentMood === "angry" ? 2.5 : 4.5;
-      const factor = Math.min(dist / 200, 1) * maxDist;
+      const maxDist = currentMood === "angry" ? 3 : 5.5;
+      const factor = Math.min(dist / 220, 1) * maxDist;
       const targetX = (dx / dist) * factor;
       const targetY = (dy / dist) * factor;
 
@@ -148,108 +148,46 @@ export function CyBroAvatar({
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, [currentMood]);
 
-  // Styling based on mood & skin
-  const getThemeColors = () => {
+  // Skin color presets
+  const getColors = () => {
     if (currentMood === "angry") {
       return {
-        primary: "#EF4444",
-        secondary: "#DC2626",
-        glow: "0 0 16px rgba(239, 68, 68, 1)",
+        glow: "#EF4444",
+        eye: "#EF4444",
+        accent: "#EF4444",
         border: "#EF4444",
-        boxShadow: "0 0 24px rgba(239, 68, 68, 0.55)",
       };
     }
     if (currentMood === "happy") {
+      const happyAccent = effectiveSkin === "kawaii" ? "#F472B6" : "#10B981";
       return {
-        primary: effectiveSkin === "kawaii" ? "#F472B6" : "#10B981",
-        secondary: effectiveSkin === "kawaii" ? "#EC4899" : "#059669",
-        glow: effectiveSkin === "kawaii" ? "0 0 16px rgba(244, 114, 182, 0.9)" : "0 0 14px rgba(16, 185, 129, 0.9)",
-        border: effectiveSkin === "kawaii" ? "#F472B6" : "#10B981",
-        boxShadow: effectiveSkin === "kawaii" ? "0 0 20px rgba(244, 114, 182, 0.45)" : "0 0 20px rgba(16, 185, 129, 0.4)",
-      };
-    }
-    if (currentMood === "smug") {
-      return {
-        primary: "#F59E0B",
-        secondary: "#D97706",
-        glow: "0 0 12px rgba(245, 158, 11, 0.8)",
-        border: "#F59E0B",
-        boxShadow: "0 0 18px rgba(245, 158, 11, 0.35)",
-      };
-    }
-    if (currentMood === "thinking") {
-      return {
-        primary: "#A855F7",
-        secondary: "#9333EA",
-        glow: "0 0 12px rgba(168, 85, 247, 0.8)",
-        border: "#A855F7",
-        boxShadow: "0 0 18px rgba(168, 85, 247, 0.35)",
+        glow: happyAccent,
+        eye: happyAccent,
+        accent: happyAccent,
+        border: happyAccent,
       };
     }
 
-    // Default: Skin-specific idle colors
     switch (effectiveSkin) {
       case "matrix":
-        return {
-          primary: "#22C55E",
-          secondary: "#15803D",
-          glow: "0 0 14px rgba(34, 197, 94, 0.9)",
-          border: "#22C55E",
-          boxShadow: "0 4px 18px rgba(34, 197, 94, 0.35)",
-        };
+        return { glow: "#22C55E", eye: "#4ADE80", accent: "#22C55E", border: "#16A34A" };
       case "mecha":
-        return {
-          primary: "#F43F5E",
-          secondary: "#BE123C",
-          glow: "0 0 14px rgba(244, 63, 94, 0.9)",
-          border: "#EF4444",
-          boxShadow: "0 4px 18px rgba(239, 68, 68, 0.4)",
-        };
+        return { glow: "#EF4444", eye: "#F43F5E", accent: "#F97316", border: "#DC2626" };
       case "gold":
-        return {
-          primary: "#F59E0B",
-          secondary: "#B45309",
-          glow: "0 0 14px rgba(245, 158, 11, 0.9)",
-          border: "#F59E0B",
-          boxShadow: "0 4px 18px rgba(245, 158, 11, 0.4)",
-        };
+        return { glow: "#F59E0B", eye: "#FDE68A", accent: "#F59E0B", border: "#D97706" };
       case "phantom":
-        return {
-          primary: "#C084FC",
-          secondary: "#7E22CE",
-          glow: "0 0 14px rgba(192, 132, 252, 0.9)",
-          border: "#A855F7",
-          boxShadow: "0 4px 18px rgba(168, 85, 247, 0.4)",
-        };
+        return { glow: "#A855F7", eye: "#C084FC", accent: "#A855F7", border: "#7E22CE" };
       case "kawaii":
-        return {
-          primary: "#F472B6",
-          secondary: "#DB2777",
-          glow: "0 0 14px rgba(244, 114, 182, 0.9)",
-          border: "#EC4899",
-          boxShadow: "0 4px 18px rgba(236, 72, 153, 0.4)",
-        };
+        return { glow: "#EC4899", eye: "#F472B6", accent: "#EC4899", border: "#DB2777" };
       case "classic":
       default:
-        return {
-          primary: "#38BDF8",
-          secondary: "#0284C7",
-          glow: "0 0 10px rgba(56, 189, 248, 0.8)",
-          border: "#38BDF8",
-          boxShadow: "0 4px 16px rgba(56, 189, 248, 0.25)",
-        };
+        return { glow: "#38BDF8", eye: "#38BDF8", accent: "#38BDF8", border: "#0284C7" };
     }
   };
 
-  const theme = getThemeColors();
-  const skinInfo = CYBRO_SKINS.find((s) => s.id === effectiveSkin) || CYBRO_SKINS[0] || {
-    id: "classic" as CyBroSkin,
-    name: "Classic Sentinel",
-    tag: "DEFAULT",
-    desc: "",
-    accent: "#38BDF8",
-    bgGradient: "linear-gradient(180deg, #1E293B 0%, #0F172A 100%)",
-  };
+  const colors = getColors();
+  const px = pupilOffset.x;
+  const py = pupilOffset.y;
 
   return (
     <div
@@ -264,532 +202,470 @@ export function CyBroAvatar({
         userSelect: "none",
         animation:
           currentMood === "happy"
-            ? "cybroHappyBounce 1.4s ease-in-out infinite"
+            ? "avatarBounce 1.4s ease-in-out infinite"
             : currentMood === "angry"
-            ? "cybroAngryShake 0.45s ease-in-out infinite"
+            ? "avatarShake 0.45s ease-in-out infinite"
             : undefined,
+        filter: `drop-shadow(0 0 12px ${colors.glow}40)`,
       }}
     >
       <style>{`
-        @keyframes cybroHappyBounce {
+        @keyframes avatarBounce {
           0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-4px) scale(1.02); }
+          50% { transform: translateY(-3.5px) scale(1.02); }
         }
-        @keyframes cybroAngryShake {
+        @keyframes avatarShake {
           0%, 100% { transform: translateX(0); }
           25% { transform: translateX(-2px) rotate(-1deg); }
           75% { transform: translateX(2px) rotate(1deg); }
         }
-        @keyframes antennaPulse {
-          0%, 100% { opacity: 0.8; }
-          50% { opacity: 1; transform: scale(1.15); }
+        @keyframes matrixScan {
+          0% { transform: translateX(-20px); opacity: 0.3; }
+          50% { opacity: 1; }
+          100% { transform: translateX(20px); opacity: 0.3; }
         }
-        @keyframes thinkingScan {
-          0%, 100% { transform: translateX(-3px); }
-          50% { transform: translateX(3px); }
+        @keyframes cyclopsPulse {
+          0%, 100% { transform: scale(1); opacity: 0.9; }
+          50% { transform: scale(1.15); opacity: 1; }
+        }
+        @keyframes earPulse {
+          0%, 100% { opacity: 0.75; }
+          50% { opacity: 1; }
         }
       `}</style>
 
-      {/* ── Skin Specific Ears & Top Crest ── */}
-      {effectiveSkin === "kawaii" ? (
-        /* Cute Triangular Cat Ears for Kawaii */
-        <>
-          <div
-            style={{
-              position: "absolute",
-              top: "-8px",
-              left: "6px",
-              width: 0,
-              height: 0,
-              borderLeft: "6px solid transparent",
-              borderRight: "6px solid transparent",
-              borderBottom: `10px solid ${theme.primary}`,
-              transform: "rotate(-18deg)",
-              filter: `drop-shadow(0 0 5px ${theme.primary})`,
-              zIndex: 1,
-            }}
-          />
-          <div
-            style={{
-              position: "absolute",
-              top: "-8px",
-              right: "6px",
-              width: 0,
-              height: 0,
-              borderLeft: "6px solid transparent",
-              borderRight: "6px solid transparent",
-              borderBottom: `10px solid ${theme.primary}`,
-              transform: "rotate(18deg)",
-              filter: `drop-shadow(0 0 5px ${theme.primary})`,
-              zIndex: 1,
-            }}
-          />
-        </>
-      ) : effectiveSkin === "mecha" ? (
-        /* Sharp Combat Mecha Horns */
-        <>
-          <div
-            style={{
-              position: "absolute",
-              top: "-8px",
-              left: "4px",
-              width: "4px",
-              height: "14px",
-              backgroundColor: theme.primary,
-              borderRadius: "1px",
-              transform: "rotate(-32deg)",
-              boxShadow: theme.glow,
-              zIndex: 1,
-            }}
-          />
-          <div
-            style={{
-              position: "absolute",
-              top: "-8px",
-              right: "4px",
-              width: "4px",
-              height: "14px",
-              backgroundColor: theme.primary,
-              borderRadius: "1px",
-              transform: "rotate(32deg)",
-              boxShadow: theme.glow,
-              zIndex: 1,
-            }}
-          />
-        </>
-      ) : effectiveSkin === "gold" ? (
-        /* Regal 3-Prong Gold Crown Crest */
-        <div
-          style={{
-            position: "absolute",
-            top: "-7px",
-            display: "flex",
-            gap: "2px",
-            alignItems: "flex-end",
-            zIndex: 1,
-          }}
-        >
-          <div style={{ width: "3px", height: "5px", backgroundColor: "#F59E0B", borderRadius: "1px" }} />
-          <div style={{ width: "4px", height: "8px", backgroundColor: "#FDE68A", borderRadius: "1px", boxShadow: "0 0 8px #F59E0B" }} />
-          <div style={{ width: "3px", height: "5px", backgroundColor: "#F59E0B", borderRadius: "1px" }} />
-        </div>
-      ) : effectiveSkin === "phantom" ? (
-        /* Spec-Ops Stealth Fins */
-        <>
-          <div
-            style={{
-              position: "absolute",
-              left: "-6px",
-              top: "32%",
-              width: "5px",
-              height: "17px",
-              backgroundColor: theme.primary,
-              borderRadius: "3px 0 0 6px",
-              boxShadow: theme.glow,
-              opacity: 0.9,
-            }}
-          />
-          <div
-            style={{
-              position: "absolute",
-              right: "-6px",
-              top: "32%",
-              width: "5px",
-              height: "17px",
-              backgroundColor: theme.primary,
-              borderRadius: "0 3px 6px 0",
-              boxShadow: theme.glow,
-              opacity: 0.9,
-            }}
-          />
-        </>
-      ) : effectiveSkin === "matrix" ? (
-        /* Matrix Twin Signal Dipoles */
-        <>
-          <div
-            style={{
-              position: "absolute",
-              left: "-4px",
-              top: "35%",
-              width: "3px",
-              height: "15px",
-              backgroundColor: "#22C55E",
-              borderRadius: "2px",
-              boxShadow: "0 0 8px #22C55E",
-            }}
-          />
-          <div
-            style={{
-              position: "absolute",
-              right: "-4px",
-              top: "35%",
-              width: "3px",
-              height: "15px",
-              backgroundColor: "#22C55E",
-              borderRadius: "2px",
-              boxShadow: "0 0 8px #22C55E",
-            }}
-          />
-          <div
-            style={{
-              position: "absolute",
-              top: "-5px",
-              width: "4px",
-              height: "6px",
-              backgroundColor: "#4ADE80",
-              borderRadius: "2px",
-              boxShadow: "0 0 8px #4ADE80",
-            }}
-          />
-        </>
-      ) : (
-        /* Classic Sentinel Ears & Beacon */
-        <>
-          <div
-            style={{
-              position: "absolute",
-              left: "-4px",
-              top: "38%",
-              width: "4px",
-              height: "13px",
-              backgroundColor: "#1E293B",
-              borderRadius: "2px",
-              border: `1px solid ${theme.primary}`,
-              boxShadow: theme.glow,
-              animation: currentMood === "angry" ? "antennaPulse 0.3s ease infinite" : undefined,
-            }}
-          />
-          <div
-            style={{
-              position: "absolute",
-              right: "-4px",
-              top: "38%",
-              width: "4px",
-              height: "13px",
-              backgroundColor: "#1E293B",
-              borderRadius: "2px",
-              border: `1px solid ${theme.primary}`,
-              boxShadow: theme.glow,
-              animation: currentMood === "angry" ? "antennaPulse 0.3s ease infinite" : undefined,
-            }}
-          />
-          <div
-            style={{
-              position: "absolute",
-              top: "-5px",
-              width: "4px",
-              height: "5px",
-              backgroundColor: theme.primary,
-              borderRadius: "2px 2px 0 0",
-              boxShadow: theme.glow,
-            }}
-          />
-        </>
+      {/* ════════════════════════════════════════════════════════════
+          CHARACTER 1: CLASSIC ASTRO BOT (TV-Head Retro Robot)
+          ════════════════════════════════════════════════════════════ */}
+      {effectiveSkin === "classic" && (
+        <svg viewBox="0 0 100 100" width="100%" height="100%" style={{ overflow: "visible" }}>
+          <defs>
+            <linearGradient id="classic-bg" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#1E293B" />
+              <stop offset="100%" stopColor="#0B132B" />
+            </linearGradient>
+            <linearGradient id="classic-visor" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#020617" />
+              <stop offset="100%" stopColor="#0F172A" />
+            </linearGradient>
+          </defs>
+
+          {/* Top Antenna Beacon */}
+          <line x1="50" y1="20" x2="50" y2="7" stroke="#38BDF8" strokeWidth="3" strokeLinecap="round" />
+          <circle cx="50" cy="6" r="4.5" fill="#38BDF8" filter={`drop-shadow(0 0 6px ${colors.glow})`} />
+
+          {/* Ear Bolts */}
+          <rect x="7" y="44" width="6" height="16" rx="2" fill="#334155" stroke="#38BDF8" strokeWidth="1.5" />
+          <rect x="87" y="44" width="6" height="16" rx="2" fill="#334155" stroke="#38BDF8" strokeWidth="1.5" />
+
+          {/* Head Chassis */}
+          <rect x="13" y="20" width="74" height="68" rx="18" fill="url(#classic-bg)" stroke="#38BDF8" strokeWidth="2.5" />
+
+          {/* Visor Screen */}
+          <rect x="20" y="27" width="60" height="42" rx="12" fill="url(#classic-visor)" stroke="rgba(56,189,248,0.3)" strokeWidth="1.5" />
+
+          {/* Eyes (Tracking + Blinking) */}
+          {currentMood === "happy" ? (
+            <g stroke={colors.eye} strokeWidth="3.5" strokeLinecap="round" fill="none">
+              <path d="M 31 46 Q 38 38 45 46" />
+              <path d="M 55 46 Q 62 38 69 46" />
+            </g>
+          ) : (
+            <g fill={colors.eye} filter={`drop-shadow(0 0 5px ${colors.glow})`}>
+              {/* Left Eye */}
+              <rect
+                x={32 + px}
+                y={isBlinking ? 46 : 39 + py}
+                width="12"
+                height={isBlinking ? "2.5" : currentMood === "angry" ? "10" : "15"}
+                rx={isBlinking ? "1" : "5"}
+              />
+              {/* Right Eye */}
+              <rect
+                x={56 + px}
+                y={isBlinking ? 46 : 39 + py}
+                width="12"
+                height={isBlinking ? "2.5" : currentMood === "angry" ? "10" : "15"}
+                rx={isBlinking ? "1" : "5"}
+              />
+            </g>
+          )}
+
+          {/* Blushing Cheeks when Happy */}
+          {currentMood === "happy" && (
+            <g fill="#F43F5E" opacity="0.85">
+              <ellipse cx="28" cy="56" rx="4" ry="2" />
+              <ellipse cx="72" cy="56" rx="4" ry="2" />
+            </g>
+          )}
+
+          {/* Speaker grill / mouth */}
+          <line x1="42" y1="77" x2="58" y2="77" stroke="#38BDF8" strokeWidth="2" strokeLinecap="round" opacity="0.7" />
+          <line x1="45" y1="81" x2="55" y2="81" stroke="#38BDF8" strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
+        </svg>
       )}
 
-      {/* ── Robot Head Capsule ── */}
-      <div
-        style={{
-          width: "100%",
-          height: "100%",
-          background: skinInfo.bgGradient,
-          borderRadius: "18px",
-          border: `2px solid ${theme.border}`,
-          boxShadow: theme.boxShadow,
-          padding: "5px",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          transition: "all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)",
-          position: "relative",
-          overflow: "hidden",
-        }}
-      >
-        {/* Glossy Screen Glare */}
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            height: "45%",
-            background: "linear-gradient(180deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 100%)",
-            borderRadius: "14px 14px 0 0",
-            pointerEvents: "none",
-          }}
-        />
+      {/* ════════════════════════════════════════════════════════════
+          CHARACTER 2: NEO MATRIX HACKER (Faceted Hex-Skull Drone)
+          ════════════════════════════════════════════════════════════ */}
+      {effectiveSkin === "matrix" && (
+        <svg viewBox="0 0 100 100" width="100%" height="100%" style={{ overflow: "visible" }}>
+          <defs>
+            <linearGradient id="matrix-bg" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#052E16" />
+              <stop offset="100%" stopColor="#021C14" />
+            </linearGradient>
+            <linearGradient id="matrix-beam" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="transparent" />
+              <stop offset="50%" stopColor="#4ADE80" />
+              <stop offset="100%" stopColor="transparent" />
+            </linearGradient>
+          </defs>
 
-        {/* ── OLED Eye Visor ── */}
-        <div
-          style={{
-            width: "88%",
-            height: "72%",
-            backgroundColor: "#030712",
-            borderRadius: "12px",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            boxShadow: "inset 0 2px 6px rgba(0,0,0,0.85)",
-            position: "relative",
-            padding: "2px",
-          }}
-        >
-          {/* Eyebrows Layer for Angry or Smug */}
-          {currentMood === "angry" && (
-            <div
-              style={{
-                position: "absolute",
-                top: "5px",
-                width: "72%",
-                display: "flex",
-                justifyContent: "space-between",
-                padding: "0 2px",
-              }}
-            >
-              <div
-                style={{
-                  width: "11px",
-                  height: "2.5px",
-                  backgroundColor: "#EF4444",
-                  borderRadius: "2px",
-                  transform: "rotate(26deg)",
-                  boxShadow: theme.glow,
-                }}
+          {/* Twin Corner Antenna Spikes */}
+          <line x1="20" y1="28" x2="10" y2="10" stroke="#22C55E" strokeWidth="2.5" strokeLinecap="round" />
+          <circle cx="10" cy="10" r="3" fill="#4ADE80" filter="drop-shadow(0 0 6px #22C55E)" />
+
+          <line x1="80" y1="28" x2="90" y2="10" stroke="#22C55E" strokeWidth="2.5" strokeLinecap="round" />
+          <circle cx="90" cy="10" r="3" fill="#4ADE80" filter="drop-shadow(0 0 6px #22C55E)" />
+
+          {/* Hexagonal Skull Chassis */}
+          <polygon
+            points="50,14 84,28 82,74 50,92 18,74 16,28"
+            fill="url(#matrix-bg)"
+            stroke="#22C55E"
+            strokeWidth="2.5"
+            strokeLinejoin="round"
+          />
+
+          {/* Matrix Circuit Lines on Temples */}
+          <polyline points="24,36 30,36 34,42" fill="none" stroke="#15803D" strokeWidth="1.5" />
+          <polyline points="76,36 70,36 66,42" fill="none" stroke="#15803D" strokeWidth="1.5" />
+
+          {/* Continuous Hacker Visor Band */}
+          <polygon
+            points="22,44 78,44 75,60 50,65 25,60"
+            fill="#030A06"
+            stroke="#22C55E"
+            strokeWidth="1.5"
+          />
+
+          {/* Sweeping Laser Radar Beam */}
+          <rect
+            x={40 + px * 2}
+            y="47"
+            width="20"
+            height="12"
+            fill="url(#matrix-beam)"
+            style={{ animation: "matrixScan 1.6s ease-in-out infinite" }}
+          />
+
+          {/* Dual Cyber Optic Dots */}
+          <circle cx={36 + px} cy={53 + py} r={isBlinking ? 1 : 3.5} fill="#4ADE80" filter="drop-shadow(0 0 6px #4ADE80)" />
+          <circle cx={64 + px} cy={53 + py} r={isBlinking ? 1 : 3.5} fill="#4ADE80" filter="drop-shadow(0 0 6px #4ADE80)" />
+
+          {/* Cyber Chin Hash */}
+          <rect x="42" y="76" width="16" height="3" fill="#22C55E" opacity="0.6" />
+          <rect x="46" y="82" width="8" height="2" fill="#22C55E" opacity="0.4" />
+        </svg>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════
+          CHARACTER 3: MECHA OVERLORD (Gundam Combat Overdrive Armor)
+          ════════════════════════════════════════════════════════════ */}
+      {effectiveSkin === "mecha" && (
+        <svg viewBox="0 0 100 100" width="100%" height="100%" style={{ overflow: "visible" }}>
+          <defs>
+            <linearGradient id="mecha-bg" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#27272A" />
+              <stop offset="100%" stopColor="#18181B" />
+            </linearGradient>
+            <linearGradient id="v-fin-gold" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#FDE047" />
+              <stop offset="100%" stopColor="#D97706" />
+            </linearGradient>
+          </defs>
+
+          {/* Giant Gundam V-Fin Horns */}
+          <polygon
+            points="50,30 22,6 30,5 50,22 70,5 78,6"
+            fill="url(#v-fin-gold)"
+            stroke="#B45309"
+            strokeWidth="1.2"
+            filter="drop-shadow(0 2px 8px rgba(245, 158, 11, 0.6))"
+          />
+          {/* Red Central V-Fin Gem */}
+          <polygon points="50,18 46,26 50,30 54,26" fill="#EF4444" stroke="#DC2626" strokeWidth="1" />
+
+          {/* Angular Armor Helmet Chassis */}
+          <polygon
+            points="50,24 84,36 80,78 68,90 32,90 20,78 16,36"
+            fill="url(#mecha-bg)"
+            stroke="#EF4444"
+            strokeWidth="2.5"
+            strokeLinejoin="round"
+          />
+
+          {/* Cheek Armor Guards */}
+          <polygon points="16,45 28,48 24,72 16,66" fill="#3F3F46" stroke="#EF4444" strokeWidth="1" />
+          <polygon points="84,45 72,48 76,72 84,66" fill="#3F3F46" stroke="#EF4444" strokeWidth="1" />
+
+          {/* Slit Visor Cavity */}
+          <polygon points="28,48 72,48 68,62 50,66 32,62" fill="#09090B" />
+
+          {/* Predator Angular Slit Eyes (Angry Combat Optics) */}
+          {currentMood === "happy" ? (
+            <g stroke="#10B981" strokeWidth="3" fill="none">
+              <path d="M 33 54 L 43 51" />
+              <path d="M 67 54 L 57 51" />
+            </g>
+          ) : (
+            <g fill="#EF4444" filter="drop-shadow(0 0 6px #EF4444)">
+              {/* Left Slit */}
+              <polygon
+                points={`${32 + px},${52 + py} ${44 + px},${56 + py} ${43 + px},${isBlinking ? 53 + py : 59 + py} ${32 + px},${isBlinking ? 53 + py : 55 + py}`}
               />
-              <div
-                style={{
-                  width: "11px",
-                  height: "2.5px",
-                  backgroundColor: "#EF4444",
-                  borderRadius: "2px",
-                  transform: "rotate(-26deg)",
-                  boxShadow: theme.glow,
-                }}
+              {/* Right Slit */}
+              <polygon
+                points={`${68 + px},${52 + py} ${56 + px},${56 + py} ${57 + px},${isBlinking ? 53 + py : 59 + py} ${68 + px},${isBlinking ? 53 + py : 55 + py}`}
               />
-            </div>
+            </g>
           )}
 
-          {currentMood === "smug" && (
-            <div
-              style={{
-                position: "absolute",
-                top: "5px",
-                width: "72%",
-                display: "flex",
-                justifyContent: "space-between",
-                padding: "0 2px",
-              }}
-            >
-              <div
-                style={{
-                  width: "11px",
-                  height: "2.5px",
-                  backgroundColor: "#F59E0B",
-                  borderRadius: "2px",
-                  transform: "translateY(-2px) rotate(-10deg)",
-                  boxShadow: theme.glow,
-                }}
+          {/* Mecha Combat Air Vent Slits on Faceplate */}
+          <line x1="42" y1="74" x2="58" y2="74" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" />
+          <line x1="44" y1="79" x2="56" y2="79" stroke="#EF4444" strokeWidth="1.5" strokeLinecap="round" />
+          <line x1="46" y1="84" x2="54" y2="84" stroke="#EF4444" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════
+          CHARACTER 4: GOLDEN SOVEREIGN (Royal Pharaoh / Cyclops Core)
+          ════════════════════════════════════════════════════════════ */}
+      {effectiveSkin === "gold" && (
+        <svg viewBox="0 0 100 100" width="100%" height="100%" style={{ overflow: "visible" }}>
+          <defs>
+            <linearGradient id="gold-dome" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#2A2008" />
+              <stop offset="100%" stopColor="#140F04" />
+            </linearGradient>
+            <linearGradient id="gold-metal" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#FDE68A" />
+              <stop offset="50%" stopColor="#F59E0B" />
+              <stop offset="100%" stopColor="#92400E" />
+            </linearGradient>
+          </defs>
+
+          {/* Royal Sun Halo Crown */}
+          <circle cx="50" cy="50" r="46" fill="none" stroke="url(#gold-metal)" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.6" />
+
+          {/* Top Royal Crest */}
+          <polygon points="50,6 44,18 56,18" fill="url(#gold-metal)" filter="drop-shadow(0 0 8px #F59E0B)" />
+
+          {/* Dome Head Chassis */}
+          <rect
+            x="16"
+            y="18"
+            width="68"
+            height="70"
+            rx="34"
+            fill="url(#gold-dome)"
+            stroke="url(#gold-metal)"
+            strokeWidth="2.8"
+          />
+
+          {/* Side Gilded Filigree Bars */}
+          <line x1="12" y1="45" x2="12" y2="60" stroke="#F59E0B" strokeWidth="3" strokeLinecap="round" />
+          <line x1="88" y1="45" x2="88" y2="60" stroke="#F59E0B" strokeWidth="3" strokeLinecap="round" />
+
+          {/* Central Cyclops Core Ring (HAL 9000 / Portal Core) */}
+          <circle cx="50" cy="52" r="22" fill="#030712" stroke="url(#gold-metal)" strokeWidth="2.5" />
+          <circle cx="50" cy="52" r="16" fill="none" stroke="#F59E0B" strokeWidth="1" strokeDasharray="3 2" />
+
+          {/* Cyclops Aperture Eye with Concentric Halo */}
+          <circle
+            cx={50 + px * 1.4}
+            cy={52 + py * 1.4}
+            r={isBlinking ? 2 : 10}
+            fill="#F59E0B"
+            filter="drop-shadow(0 0 10px #F59E0B)"
+            style={{ animation: "cyclopsPulse 2s ease-in-out infinite" }}
+          />
+          <circle
+            cx={50 + px * 1.4}
+            cy={52 + py * 1.4}
+            r={isBlinking ? 1 : 4}
+            fill="#FFFBEB"
+          />
+
+          {/* Sovereign Golden Chin Ingot */}
+          <rect x="42" y="78" width="16" height="4" rx="2" fill="url(#gold-metal)" />
+        </svg>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════
+          CHARACTER 5: NEKO CYBERPUNK (Cute Anime Catbot with Tri-Ears)
+          ════════════════════════════════════════════════════════════ */}
+      {effectiveSkin === "kawaii" && (
+        <svg viewBox="0 0 100 100" width="100%" height="100%" style={{ overflow: "visible" }}>
+          <defs>
+            <linearGradient id="neko-bg" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#2E1035" />
+              <stop offset="100%" stopColor="#14061A" />
+            </linearGradient>
+            <linearGradient id="neko-ear-glow" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#F472B6" />
+              <stop offset="100%" stopColor="#BE185D" />
+            </linearGradient>
+          </defs>
+
+          {/* Left Cat Ear (Outer + Inner Glow Pad) */}
+          <polygon
+            points="14,35 6,5 38,18"
+            fill="url(#neko-bg)"
+            stroke="#EC4899"
+            strokeWidth="2.5"
+            strokeLinejoin="round"
+          />
+          <polygon
+            points="16,30 11,10 32,19"
+            fill="url(#neko-ear-glow)"
+            style={{ animation: "earPulse 2s ease-in-out infinite" }}
+            filter="drop-shadow(0 0 6px #EC4899)"
+          />
+
+          {/* Right Cat Ear (Outer + Inner Glow Pad) */}
+          <polygon
+            points="86,35 94,5 62,18"
+            fill="url(#neko-bg)"
+            stroke="#EC4899"
+            strokeWidth="2.5"
+            strokeLinejoin="round"
+          />
+          <polygon
+            points="84,30 89,10 68,19"
+            fill="url(#neko-ear-glow)"
+            style={{ animation: "earPulse 2s ease-in-out infinite" }}
+            filter="drop-shadow(0 0 6px #EC4899)"
+          />
+
+          {/* Round Chibi Cat Head Chassis */}
+          <rect
+            x="14"
+            y="20"
+            width="72"
+            height="66"
+            rx="26"
+            fill="url(#neko-bg)"
+            stroke="#EC4899"
+            strokeWidth="2.5"
+          />
+
+          {/* Visor Area */}
+          <rect x="20" y="27" width="60" height="40" rx="18" fill="#0A020F" stroke="rgba(236,72,153,0.3)" strokeWidth="1.2" />
+
+          {/* Big Chibi Anime Eyes with Twinkles */}
+          {currentMood === "happy" ? (
+            <g stroke="#F472B6" strokeWidth="3.5" strokeLinecap="round" fill="none">
+              <path d="M 30 46 Q 37 38 44 46" />
+              <path d="M 56 46 Q 63 38 70 46" />
+            </g>
+          ) : (
+            <g>
+              {/* Left Eye */}
+              <ellipse
+                cx={37 + px}
+                cy={45 + py}
+                rx={isBlinking ? 6 : 7}
+                ry={isBlinking ? 1 : 9}
+                fill="#F472B6"
+                filter="drop-shadow(0 0 6px #EC4899)"
               />
-              <div
-                style={{
-                  width: "11px",
-                  height: "2.5px",
-                  backgroundColor: "#F59E0B",
-                  borderRadius: "2px",
-                  transform: "translateY(1px) rotate(-5deg)",
-                  boxShadow: theme.glow,
-                }}
+              {!isBlinking && <circle cx={35 + px} cy={42 + py} r="2.5" fill="#FFFFFF" />}
+
+              {/* Right Eye */}
+              <ellipse
+                cx={63 + px}
+                cy={45 + py}
+                rx={isBlinking ? 6 : 7}
+                ry={isBlinking ? 1 : 9}
+                fill="#F472B6"
+                filter="drop-shadow(0 0 6px #EC4899)"
               />
-            </div>
+              {!isBlinking && <circle cx={61 + px} cy={42 + py} r="2.5" fill="#FFFFFF" />}
+            </g>
           )}
 
-          {/* ── Eyes Container ── */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "8px",
-              marginTop: currentMood === "angry" || currentMood === "smug" ? "4px" : "0",
-            }}
-          >
-            {/* Left Eye */}
-            {currentMood === "happy" ? (
-              <div
-                style={{
-                  width: "10px",
-                  height: "5px",
-                  borderTop: `2.5px solid ${theme.primary}`,
-                  borderRadius: "10px 10px 0 0",
-                  boxShadow: theme.glow,
-                  transform: "translateY(-1px)",
-                }}
-              />
-            ) : currentMood === "smug" ? (
-              <div
-                style={{
-                  width: "10px",
-                  height: "5px",
-                  backgroundColor: theme.primary,
-                  borderRadius: "3px",
-                  boxShadow: theme.glow,
-                  transform: `translate(${pupilOffset.x}px, 2px)`,
-                }}
-              />
-            ) : currentMood === "thinking" ? (
-              <div
-                style={{
-                  width: "10px",
-                  height: "10px",
-                  backgroundColor: theme.primary,
-                  borderRadius: "50%",
-                  boxShadow: theme.glow,
-                  animation: "thinkingScan 0.8s ease-in-out infinite",
-                }}
-              />
-            ) : (
-              <div
-                style={{
-                  width: currentMood === "angry" ? "10px" : "11px",
-                  height: isBlinking ? "2px" : currentMood === "angry" ? "10px" : "13px",
-                  backgroundColor: theme.primary,
-                  borderRadius: currentMood === "angry" ? "2px" : "5px",
-                  boxShadow: theme.glow,
-                  transform: `translate(${pupilOffset.x}px, ${pupilOffset.y}px)`,
-                  transition: isBlinking
-                    ? "height 0.08s ease"
-                    : "transform 0.08s ease-out, height 0.15s ease",
-                }}
-              />
-            )}
+          {/* Cheerful Blushing Pink Cheeks */}
+          <ellipse cx="26" cy="54" rx="4.5" ry="2.5" fill="#F43F5E" opacity="0.9" filter="drop-shadow(0 0 4px #F43F5E)" />
+          <ellipse cx="74" cy="54" rx="4.5" ry="2.5" fill="#F43F5E" opacity="0.9" filter="drop-shadow(0 0 4px #F43F5E)" />
 
-            {/* Right Eye */}
-            {currentMood === "happy" ? (
-              <div
-                style={{
-                  width: "10px",
-                  height: "5px",
-                  borderTop: `2.5px solid ${theme.primary}`,
-                  borderRadius: "10px 10px 0 0",
-                  boxShadow: theme.glow,
-                  transform: "translateY(-1px)",
-                }}
-              />
-            ) : currentMood === "smug" ? (
-              <div
-                style={{
-                  width: "10px",
-                  height: "5px",
-                  backgroundColor: theme.primary,
-                  borderRadius: "3px",
-                  boxShadow: theme.glow,
-                  transform: `translate(${pupilOffset.x}px, 2px)`,
-                }}
-              />
-            ) : currentMood === "thinking" ? (
-              <div
-                style={{
-                  width: "10px",
-                  height: "10px",
-                  backgroundColor: theme.primary,
-                  borderRadius: "50%",
-                  boxShadow: theme.glow,
-                  animation: "thinkingScan 0.8s ease-in-out infinite",
-                }}
-              />
-            ) : (
-              <div
-                style={{
-                  width: currentMood === "angry" ? "10px" : "11px",
-                  height: isBlinking ? "2px" : currentMood === "angry" ? "10px" : "13px",
-                  backgroundColor: theme.primary,
-                  borderRadius: currentMood === "angry" ? "2px" : "5px",
-                  boxShadow: theme.glow,
-                  transform: `translate(${pupilOffset.x}px, ${pupilOffset.y}px)`,
-                  transition: isBlinking
-                    ? "height 0.08s ease"
-                    : "transform 0.08s ease-out, height 0.15s ease",
-                }}
-              />
-            )}
-          </div>
+          {/* Anime Cute :3 Cat Mouth */}
+          <path
+            d="M 44 56 Q 47 60 50 56 Q 53 60 56 56"
+            fill="none"
+            stroke="#F472B6"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
 
-          {/* ── Happy Blushing Cheeks ── */}
-          {currentMood === "happy" && (
-            <div
-              style={{
-                position: "absolute",
-                bottom: "4px",
-                width: "75%",
-                display: "flex",
-                justifyContent: "space-between",
-                padding: "0 2px",
-              }}
-            >
-              <div
-                style={{
-                  width: "6px",
-                  height: "3px",
-                  backgroundColor: "#F43F5E",
-                  borderRadius: "50%",
-                  boxShadow: "0 0 6px #F43F5E",
-                }}
-              />
-              <div
-                style={{
-                  width: "6px",
-                  height: "3px",
-                  backgroundColor: "#F43F5E",
-                  borderRadius: "50%",
-                  boxShadow: "0 0 6px #F43F5E",
-                }}
-              />
-            </div>
-          )}
+          {/* Cyber Whiskers */}
+          <line x1="8" y1="48" x2="16" y2="50" stroke="#EC4899" strokeWidth="1.5" strokeLinecap="round" opacity="0.8" />
+          <line x1="8" y1="54" x2="16" y2="54" stroke="#EC4899" strokeWidth="1.5" strokeLinecap="round" opacity="0.8" />
+          <line x1="92" y1="48" x2="84" y2="50" stroke="#EC4899" strokeWidth="1.5" strokeLinecap="round" opacity="0.8" />
+          <line x1="92" y1="54" x2="84" y2="54" stroke="#EC4899" strokeWidth="1.5" strokeLinecap="round" opacity="0.8" />
+        </svg>
+      )}
 
-          {/* ── Mouth / Expression Line ── */}
-          {currentMood === "happy" && (
-            <div
-              style={{
-                width: "10px",
-                height: "5px",
-                borderBottom: `2px solid ${theme.primary}`,
-                borderRadius: "0 0 10px 10px",
-                marginTop: "3px",
-              }}
-            />
-          )}
+      {/* ════════════════════════════════════════════════════════════
+          CHARACTER 6: GHOST SPEC-OPS (Tri-Eye Stealth Drone)
+          ════════════════════════════════════════════════════════════ */}
+      {effectiveSkin === "phantom" && (
+        <svg viewBox="0 0 100 100" width="100%" height="100%" style={{ overflow: "visible" }}>
+          <defs>
+            <linearGradient id="phantom-bg" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#1E0B36" />
+              <stop offset="100%" stopColor="#0B0314" />
+            </linearGradient>
+          </defs>
 
-          {currentMood === "angry" && (
-            <div
-              style={{
-                width: "9px",
-                height: "2px",
-                backgroundColor: "#EF4444",
-                borderRadius: "1px",
-                marginTop: "4px",
-                boxShadow: theme.glow,
-              }}
-            />
-          )}
+          {/* Swept-Back Stealth Recon Fins */}
+          <polygon points="12,38 2,52 14,56" fill="#1E0B36" stroke="#A855F7" strokeWidth="1.8" />
+          <polygon points="88,38 98,52 86,56" fill="#1E0B36" stroke="#A855F7" strokeWidth="1.8" />
 
-          {currentMood === "smug" && (
-            <div
-              style={{
-                width: "8px",
-                height: "2px",
-                backgroundColor: "#F59E0B",
-                transform: "rotate(14deg) translateX(2px)",
-                borderRadius: "1px",
-                marginTop: "3px",
-                boxShadow: theme.glow,
-              }}
-            />
-          )}
-        </div>
-      </div>
+          {/* Stealth Teardrop Helmet Chassis */}
+          <polygon
+            points="50,14 84,32 76,82 50,92 24,82 16,32"
+            fill="url(#phantom-bg)"
+            stroke="#A855F7"
+            strokeWidth="2.5"
+            strokeLinejoin="round"
+          />
+
+          {/* Spec-Ops Holographic Facial Seams */}
+          <line x1="50" y1="14" x2="50" y2="30" stroke="#7E22CE" strokeWidth="1.5" strokeDasharray="3 2" />
+          <line x1="28" y1="78" x2="50" y2="88" stroke="#7E22CE" strokeWidth="1.5" />
+          <line x1="72" y1="78" x2="50" y2="88" stroke="#7E22CE" strokeWidth="1.5" />
+
+          {/* ── TRI-EYE SENSOR ARRAY (3 Tactical Optics in Triangle) ── */}
+          <g filter="drop-shadow(0 0 7px #A855F7)">
+            {/* Top Center Optic Lens */}
+            <circle cx={50 + px * 0.9} cy={38 + py * 0.9} r={isBlinking ? 2 : 5} fill="#C084FC" stroke="#A855F7" strokeWidth="1.5" />
+            <circle cx={50 + px * 0.9} cy={38 + py * 0.9} r="1.5" fill="#FFFFFF" />
+
+            {/* Bottom-Left Optic Lens */}
+            <circle cx={38 + px * 0.9} cy={54 + py * 0.9} r={isBlinking ? 2 : 6} fill="#C084FC" stroke="#A855F7" strokeWidth="1.5" />
+            <circle cx={38 + px * 0.9} cy={54 + py * 0.9} r="2" fill="#FFFFFF" />
+
+            {/* Bottom-Right Optic Lens */}
+            <circle cx={62 + px * 0.9} cy={54 + py * 0.9} r={isBlinking ? 2 : 6} fill="#C084FC" stroke="#A855F7" strokeWidth="1.5" />
+            <circle cx={62 + px * 0.9} cy={54 + py * 0.9} r="2" fill="#FFFFFF" />
+          </g>
+
+          {/* Ghost Stealth Vocoder Mouth */}
+          <polygon points="46,72 54,72 50,76" fill="#A855F7" opacity="0.8" />
+        </svg>
+      )}
     </div>
   );
 }
