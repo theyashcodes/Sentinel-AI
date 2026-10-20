@@ -1,5 +1,3 @@
-import zlib from "node:zlib";
-
 export interface ForensicResult {
   filename: string;
   fileSizeBytes: number;
@@ -41,6 +39,103 @@ export interface ForensicResult {
   summaryExplanation: string;
 }
 
+/**
+ * Universal BinaryBuffer that runs identically in Browser and Node.js
+ * Wraps Uint8Array with binary reading methods (DataView) and text decoding.
+ */
+export class BinaryBuffer {
+  readonly uint8: Uint8Array;
+  private readonly view: DataView;
+  private static latin1Decoder = new TextDecoder("latin1");
+  private static utf8Decoder = new TextDecoder("utf-8");
+
+  constructor(source: Uint8Array | ArrayBuffer | BinaryBuffer | number[] | any) {
+    if (source instanceof BinaryBuffer) {
+      this.uint8 = source.uint8;
+    } else if (source instanceof ArrayBuffer) {
+      this.uint8 = new Uint8Array(source);
+    } else if (source instanceof Uint8Array) {
+      this.uint8 = source;
+    } else if (Array.isArray(source)) {
+      this.uint8 = new Uint8Array(source);
+    } else if (source?.buffer) {
+      this.uint8 = new Uint8Array(source.buffer, source.byteOffset, source.byteLength);
+    } else {
+      this.uint8 = new Uint8Array(source || 0);
+    }
+    this.view = new DataView(this.uint8.buffer, this.uint8.byteOffset, this.uint8.byteLength);
+  }
+
+  get length(): number {
+    return this.uint8.length;
+  }
+
+  at(index: number): number {
+    return this.uint8[index] ?? 0;
+  }
+
+  subarray(start: number, end?: number): BinaryBuffer {
+    return new BinaryBuffer(this.uint8.subarray(start, end));
+  }
+
+  readUInt32BE(offset: number): number {
+    return this.view.getUint32(offset, false);
+  }
+
+  readUInt16BE(offset: number): number {
+    return this.view.getUint16(offset, false);
+  }
+
+  readUInt32LE(offset: number): number {
+    return this.view.getUint32(offset, true);
+  }
+
+  readUInt16LE(offset: number): number {
+    return this.view.getUint16(offset, true);
+  }
+
+  readBigUInt64BE(offset: number): bigint {
+    return this.view.getBigUint64(offset, false);
+  }
+
+  toString(encoding: "utf8" | "ascii" | "binary" = "utf8", start = 0, end?: number): string {
+    const slice = this.uint8.subarray(start, end ?? this.uint8.length);
+    if (encoding === "binary" || encoding === "ascii") {
+      return BinaryBuffer.latin1Decoder.decode(slice);
+    }
+    return BinaryBuffer.utf8Decoder.decode(slice);
+  }
+
+  indexOf(byte: number, start = 0): number {
+    return this.uint8.indexOf(byte, start);
+  }
+
+  static fromSource(source: any): BinaryBuffer {
+    if (source instanceof BinaryBuffer) {
+      return source;
+    }
+    return new BinaryBuffer(source);
+  }
+}
+
+/**
+ * Standard browser/Node decompressor for PNG zTXt/iTXt chunks
+ */
+async function inflateBytes(buffer: BinaryBuffer): Promise<string> {
+  try {
+    if (typeof DecompressionStream !== "undefined") {
+      const ds = new DecompressionStream("deflate");
+      const blob = new Blob([buffer.uint8 as any]);
+      const stream = blob.stream().pipeThrough(ds);
+      const res = new Response(stream);
+      return await res.text();
+    }
+  } catch {
+    // If deflate fails or unsupported, fall through safely
+  }
+  return "";
+}
+
 // ── Known AI Signatures Dictionary (Images & Video) ──
 const AI_KEYWORDS = [
   { pattern: /trainedalgorithmicmedia/i, tool: "GenAI Industry Standard (C2PA/IPTC)", confidence: 99 },
@@ -66,20 +161,22 @@ const AI_KEYWORDS = [
 ];
 
 /**
- * Main analysis entrypoint for uploaded media buffers.
+ * Universal analysis entrypoint for uploaded media (runs in Browser AND Node.js).
+ * Supports images and videos up to 50MB.
  */
 export async function analyzeMediaProvenance(
-  buffer: Buffer,
+  rawInput: Uint8Array | ArrayBuffer | BinaryBuffer | any,
   filename: string
 ): Promise<ForensicResult> {
+  const buffer = BinaryBuffer.fromSource(rawInput);
   const fileSizeBytes = buffer.length;
   let format: "PNG" | "JPEG" | "WEBP" | "MP4" | "WEBM" | "MOV" | "UNKNOWN" = "UNKNOWN";
 
   const lowerName = filename.toLowerCase();
 
-  if (buffer.length >= 8 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) {
+  if (buffer.length >= 8 && buffer.at(0) === 0x89 && buffer.at(1) === 0x50 && buffer.at(2) === 0x4e && buffer.at(3) === 0x47) {
     format = "PNG";
-  } else if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+  } else if (buffer.length >= 3 && buffer.at(0) === 0xff && buffer.at(1) === 0xd8 && buffer.at(2) === 0xff) {
     format = "JPEG";
   } else if (
     buffer.length >= 12 &&
@@ -96,7 +193,7 @@ export async function analyzeMediaProvenance(
   } else if (lowerName.endsWith(".mov") || (buffer.length >= 8 && buffer.toString("ascii", 4, 8) === "moov")) {
     format = "MOV";
   } else if (
-    (buffer.length >= 4 && buffer[0] === 0x1a && buffer[1] === 0x45 && buffer[2] === 0xdf && buffer[3] === 0xa3) ||
+    (buffer.length >= 4 && buffer.at(0) === 0x1a && buffer.at(1) === 0x45 && buffer.at(2) === 0xdf && buffer.at(3) === 0xa3) ||
     lowerName.endsWith(".webm")
   ) {
     format = "WEBM";
@@ -121,12 +218,20 @@ export async function analyzeMediaProvenance(
     summaryExplanation: "Analyzing media headers...",
   };
 
-  // Raw buffer string scanning for quick heuristic matches
-  const bufferAscii = buffer.toString("binary");
+  // Efficient scanning for quick heuristic matches without allocating massive strings for 50MB files
+  let bufferAscii = "";
+  if (buffer.length <= 4 * 1024 * 1024) {
+    bufferAscii = buffer.toString("binary");
+  } else {
+    // Provenance manifests and atoms are in container headers and footers
+    const head = buffer.toString("binary", 0, 2 * 1024 * 1024);
+    const tail = buffer.toString("binary", Math.max(0, buffer.length - 2 * 1024 * 1024));
+    bufferAscii = head + "\n" + tail;
+  }
 
   // 1. Format-Specific Deep Parsing
   if (format === "PNG") {
-    parsePngChunks(buffer, result);
+    await parsePngChunks(buffer, result);
   } else if (format === "JPEG") {
     parseJpegMarkers(buffer, result);
   } else if (format === "WEBP") {
@@ -137,8 +242,8 @@ export async function analyzeMediaProvenance(
     parseWebmMetadata(buffer, result);
   }
 
-  // 2. Global C2PA / JUMBF Manifest Search (Across Entire File Stream)
-  scanForC2paManifest(buffer, bufferAscii, result);
+  // 2. Global C2PA / JUMBF Manifest Search
+  scanForC2paManifest(bufferAscii, result);
 
   // 3. Global SynthID & Google GenAI Signature Search
   scanForSynthIdMarkers(bufferAscii, result);
@@ -152,7 +257,7 @@ export async function analyzeMediaProvenance(
 // ─────────────────────────────────────────────────────────────
 // PNG Chunk Parser
 // ─────────────────────────────────────────────────────────────
-function parsePngChunks(buffer: Buffer, result: ForensicResult) {
+async function parsePngChunks(buffer: BinaryBuffer, result: ForensicResult) {
   let offset = 8; // skip 8-byte signature
   let textChunksFound = 0;
 
@@ -182,8 +287,8 @@ function parsePngChunks(buffer: Buffer, result: ForensicResult) {
         // byte after null is compression method (0 = deflate)
         const compressed = chunkData.subarray(nullIdx + 2);
         try {
-          const uncompressed = zlib.inflateSync(compressed).toString("utf8");
-          inspectAiTextPayload(keyword, uncompressed, result);
+          const uncompressed = await inflateBytes(compressed);
+          if (uncompressed) inspectAiTextPayload(keyword, uncompressed, result);
         } catch {
           // ignore decompression failure
         }
@@ -193,9 +298,9 @@ function parsePngChunks(buffer: Buffer, result: ForensicResult) {
       const nullIdx = chunkData.indexOf(0);
       if (nullIdx !== -1) {
         const keyword = chunkData.toString("ascii", 0, nullIdx);
-        const compFlag = chunkData[nullIdx + 1];
+        const compFlag = chunkData.at(nullIdx + 1);
         // Skip language tag and translated keyword
-        let currentPos = nullIdx + 3;
+        const currentPos = nullIdx + 3;
         const nextNull1 = chunkData.indexOf(0, currentPos);
         if (nextNull1 !== -1) {
           const nextNull2 = chunkData.indexOf(0, nextNull1 + 1);
@@ -203,8 +308,8 @@ function parsePngChunks(buffer: Buffer, result: ForensicResult) {
             const rawPayload = chunkData.subarray(nextNull2 + 1);
             if (compFlag === 1) {
               try {
-                const uncompressed = zlib.inflateSync(rawPayload).toString("utf8");
-                inspectAiTextPayload(keyword, uncompressed, result);
+                const uncompressed = await inflateBytes(rawPayload);
+                if (uncompressed) inspectAiTextPayload(keyword, uncompressed, result);
               } catch {
                 // ignore
               }
@@ -240,7 +345,7 @@ function inspectAiTextPayload(keyword: string, text: string, result: ForensicRes
   if (
     lowerKeyword === "parameters" ||
     lowerText.includes("negative prompt:") ||
-    lowerText.includes("steps: ") && lowerText.includes("sampler: ")
+    (lowerText.includes("steps: ") && lowerText.includes("sampler: "))
   ) {
     result.generatorTool = result.generatorTool || "Stable Diffusion (WebUI / SDXL)";
     result.technicalEvidence.push({
@@ -331,16 +436,16 @@ function extractPromptFromComfy(comfyJson: string): string | null {
 // ─────────────────────────────────────────────────────────────
 // JPEG Markers Parser
 // ─────────────────────────────────────────────────────────────
-function parseJpegMarkers(buffer: Buffer, result: ForensicResult) {
+function parseJpegMarkers(buffer: BinaryBuffer, result: ForensicResult) {
   let offset = 2; // skip 0xFF 0xD8
 
   while (offset + 4 <= buffer.length) {
-    if (buffer[offset] !== 0xff) {
+    if (buffer.at(offset) !== 0xff) {
       offset++;
       continue;
     }
 
-    const marker = buffer[offset + 1];
+    const marker = buffer.at(offset + 1);
     if (marker === undefined) break;
     // Standalone markers without length
     if (marker === 0xd8 || marker === 0xd9 || marker === 0x00 || (marker >= 0xd0 && marker <= 0xd7)) {
@@ -386,7 +491,7 @@ function parseJpegMarkers(buffer: Buffer, result: ForensicResult) {
 // ─────────────────────────────────────────────────────────────
 // WebP Chunk Parser
 // ─────────────────────────────────────────────────────────────
-function parseWebpChunks(buffer: Buffer, result: ForensicResult) {
+function parseWebpChunks(buffer: BinaryBuffer, result: ForensicResult) {
   let offset = 12; // skip RIFF + size + WEBP
 
   while (offset + 8 <= buffer.length) {
@@ -412,7 +517,7 @@ function parseWebpChunks(buffer: Buffer, result: ForensicResult) {
 // ─────────────────────────────────────────────────────────────
 // MP4 / MOV Video Atom Parser
 // ─────────────────────────────────────────────────────────────
-function parseMp4Atoms(buffer: Buffer, result: ForensicResult) {
+function parseMp4Atoms(buffer: BinaryBuffer, result: ForensicResult) {
   let offset = 0;
   let atomsFound = 0;
 
@@ -492,7 +597,7 @@ function parseMp4Atoms(buffer: Buffer, result: ForensicResult) {
 // ─────────────────────────────────────────────────────────────
 // WebM Video Parser
 // ─────────────────────────────────────────────────────────────
-function parseWebmMetadata(buffer: Buffer, result: ForensicResult) {
+function parseWebmMetadata(buffer: BinaryBuffer, result: ForensicResult) {
   const headerSample = buffer.subarray(0, Math.min(buffer.length, 65536)).toString("utf8");
 
   for (const kw of AI_KEYWORDS) {
@@ -516,10 +621,10 @@ function parseWebmMetadata(buffer: Buffer, result: ForensicResult) {
 // ─────────────────────────────────────────────────────────────
 // EXIF Camera Hardware Parser
 // ─────────────────────────────────────────────────────────────
-function parseExifHardwareData(exifBuf: Buffer, result: ForensicResult) {
+function parseExifHardwareData(exifBuf: BinaryBuffer, result: ForensicResult) {
   if (exifBuf.length < 8) return;
 
-  const isLittleEndian = exifBuf[0] === 0x49 && exifBuf[1] === 0x49; // 'II' vs 'MM'
+  const isLittleEndian = exifBuf.at(0) === 0x49 && exifBuf.at(1) === 0x49; // 'II' vs 'MM'
   const readU16 = (off: number) =>
     isLittleEndian ? exifBuf.readUInt16LE(off) : exifBuf.readUInt16BE(off);
   const readU32 = (off: number) =>
@@ -536,7 +641,6 @@ function parseExifHardwareData(exifBuf: Buffer, result: ForensicResult) {
 
     for (let i = 0; i < numEntries && entryPos + 12 <= exifBuf.length; i++) {
       const tag = readU16(entryPos);
-      const type = readU16(entryPos + 2);
       const count = readU32(entryPos + 4);
       const valueOrOffset = readU32(entryPos + 8);
 
@@ -612,7 +716,7 @@ function parseXmpXml(xmp: string, result: ForensicResult) {
 // ─────────────────────────────────────────────────────────────
 // Global C2PA / JUMBF Manifest Search
 // ─────────────────────────────────────────────────────────────
-function scanForC2paManifest(buffer: Buffer, binaryStr: string, result: ForensicResult) {
+function scanForC2paManifest(binaryStr: string, result: ForensicResult) {
   if (binaryStr.includes("c2pa") || binaryStr.includes("urn:c2pa") || binaryStr.includes("C2PA_MANIFEST")) {
     result.c2pa.detected = true;
     result.c2pa.manifestFound = true;
