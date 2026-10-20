@@ -201,6 +201,28 @@ export function VoiceForensicsView() {
         rawResult: res,
       });
 
+      // Persist scan to database for audit history
+      fetch("/api/scans/record", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "FILE",
+          payload: file.name,
+          riskLevel: res.riskLevel === "malicious" ? "CRITICAL" : res.riskLevel === "suspicious" ? "MEDIUM" : "SAFE",
+          threatCategory: `AI Voice: ${res.verdict} (${res.aiProbabilityScore}% AI)`,
+          confidenceScore: res.confidenceScore,
+          aiProvider: "SENTINEL_VOICE_CORE",
+          aiModel: "BioAcoustic-Deepfake-v2",
+          analysisMetadata: {
+            aiProbabilityScore: res.aiProbabilityScore,
+            matchedArchitecture: res.matchedArchitecture,
+            jitterPercent: res.acousticMetrics.jitterPercent,
+            spectralCutoffKHz: res.acousticMetrics.spectralCutoffKHz,
+            verdict: res.verdict,
+          },
+        }),
+      }).catch((err) => console.error("Failed to log voice scan to history:", err));
+
       audioCtx.close();
     } catch (err) {
       console.error("Audio forensic error:", err);
@@ -274,6 +296,26 @@ export function VoiceForensicsView() {
       ],
       rawResult: presetData,
     });
+
+    // Persist preset scan to database
+    fetch("/api/scans/record", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "FILE",
+        payload: `preset-${type}-sample.wav`,
+        riskLevel: presetData.riskLevel === "malicious" ? "CRITICAL" : presetData.riskLevel === "suspicious" ? "MEDIUM" : "SAFE",
+        threatCategory: `AI Voice Sample: ${presetData.verdict}`,
+        confidenceScore: presetData.confidenceScore,
+        aiProvider: "SENTINEL_VOICE_CORE",
+        aiModel: "BioAcoustic-Deepfake-v2",
+        analysisMetadata: {
+          aiProbabilityScore: presetData.aiProbabilityScore,
+          matchedArchitecture: presetData.matchedArchitecture,
+          verdict: presetData.verdict,
+        },
+      }),
+    }).catch((err) => console.error("Failed to log preset scan to history:", err));
   };
 
   const handleReset = () => {

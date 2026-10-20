@@ -4,13 +4,22 @@ import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { History, Search, QrCode, ExternalLink } from "lucide-react";
+import {
+  History,
+  Search,
+  QrCode,
+  Mic,
+  FileAudio,
+  Fingerprint,
+  Mail,
+  GitFork,
+  FileText,
+} from "lucide-react";
 import { Metadata } from "next";
-import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Scan History",
-  description: "Complete historical audit log of all URL and QR code security diagnostics.",
+  description: "Unified historical audit log of all URL, QR, Voice, Media, and Email forensics.",
 };
 
 function formatDateTime(date: Date): string {
@@ -59,11 +68,34 @@ export default async function HistoryPage() {
     }
   };
 
+  const getScanIcon = (scan: any) => {
+    const type = scan.type;
+    const provider = scan.result?.aiProvider || "";
+    const payload = (scan.payload || "").toLowerCase();
+
+    if (provider.includes("REDIRECT_TRACER")) {
+      return <GitFork style={{ width: "15px", height: "15px", color: "var(--accent)", flexShrink: 0 }} />;
+    }
+    if (provider.includes("VOICE") || payload.endsWith(".mp3") || payload.endsWith(".wav") || payload.endsWith(".webm") || payload.includes("mic-recording")) {
+      return <Mic style={{ width: "15px", height: "15px", color: "var(--accent)", flexShrink: 0 }} />;
+    }
+    if (provider.includes("EMAIL") || type === "MESSAGE") {
+      return <Mail style={{ width: "15px", height: "15px", color: "var(--accent)", flexShrink: 0 }} />;
+    }
+    if (provider.includes("MEDIA") || type === "FILE") {
+      return <Fingerprint style={{ width: "15px", height: "15px", color: "var(--accent)", flexShrink: 0 }} />;
+    }
+    if (type === "QR") {
+      return <QrCode style={{ width: "15px", height: "15px", color: "var(--accent)", flexShrink: 0 }} />;
+    }
+    return <Search style={{ width: "15px", height: "15px", color: "var(--accent)", flexShrink: 0 }} />;
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.75rem" }}>
       <PageHeader
         title="Scan History & Audit Logs"
-        description="Review all past URL and QR code inspections verified by the Sentinel AI ML engine."
+        description="Unified historical audit log of all URL, QR, Voice, Media, and Email forensics verified by the Sentinel AI engine."
       >
         <div className="chip" style={{ color: "var(--ink)", borderColor: "var(--hair-10)" }}>
           <span className="status-dot pulse" style={{ width: "5px", height: "5px" }} />
@@ -74,8 +106,8 @@ export default async function HistoryPage() {
       {scans.length === 0 ? (
         <EmptyState
           icon={History}
-          title="No scan history"
-          description="You haven't run any scans yet. Run your first scan using the URL Scanner or QR Scanner to start building your security history."
+          title="No scan history recorded"
+          description="You haven't run any scans yet. Run your first security diagnostic using the URL Scanner, QR Scanner, Redirect Tracer, AI Voice Detector, AI Media Forensics, or Email Dissector to start building your audit log."
         />
       ) : (
         <div
@@ -90,7 +122,7 @@ export default async function HistoryPage() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1.8fr 100px 120px 140px 160px",
+              gridTemplateColumns: "1.8fr 110px 120px 130px 160px",
               padding: "0.85rem 1.25rem",
               borderBottom: "1px solid var(--hair-10)",
               backgroundColor: "var(--ground-secondary)",
@@ -99,10 +131,10 @@ export default async function HistoryPage() {
             }}
             className="hidden md:grid"
           >
-            <span className="label" style={{ color: "var(--muted)" }}>Target Payload</span>
+            <span className="label" style={{ color: "var(--muted)" }}>Target & Diagnostic Category</span>
             <span className="label" style={{ color: "var(--muted)" }}>Type</span>
             <span className="label" style={{ color: "var(--muted)" }}>Risk Verdict</span>
-            <span className="label" style={{ color: "var(--muted)" }}>Status</span>
+            <span className="label" style={{ color: "var(--muted)" }}>Confidence</span>
             <span className="label" style={{ color: "var(--muted)", textAlign: "right" }}>Timestamp</span>
           </div>
 
@@ -110,7 +142,7 @@ export default async function HistoryPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
             {scans.map((scan, i) => {
               const badge = getRiskBadge(scan.riskLevel);
-              const isUrl = scan.type === "URL";
+              const threatText = scan.result?.threatCategory || scan.result?.aiModel;
 
               return (
                 <div
@@ -118,34 +150,45 @@ export default async function HistoryPage() {
                   style={{
                     display: "grid",
                     gridTemplateColumns: "1fr",
-                    padding: "1rem 1.25rem",
+                    padding: "0.9rem 1.25rem",
                     borderTop: i === 0 ? "none" : "1px solid var(--hair-06)",
                     gap: "0.75rem",
                     alignItems: "center",
                     transition: "background-color 0.15s ease",
                   }}
-                  className="md:grid-cols-[1.8fr_100px_120px_140px_160px]"
+                  className="md:grid-cols-[1.8fr_110px_120px_130px_160px]"
                 >
                   {/* Target & icon */}
                   <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", minWidth: 0 }}>
-                    {isUrl ? (
-                      <Search style={{ width: "14px", height: "14px", color: "var(--accent)", flexShrink: 0 }} />
-                    ) : (
-                      <QrCode style={{ width: "14px", height: "14px", color: "var(--accent)", flexShrink: 0 }} />
-                    )}
-                    <span
-                      style={{
-                        fontSize: "13px",
-                        fontWeight: 400,
-                        color: "var(--ink)",
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                      }}
-                      title={scan.payload || "Diagnostic Target"}
-                    >
-                      {scan.payload || "Diagnostic Target"}
-                    </span>
+                    {getScanIcon(scan)}
+                    <div style={{ display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden" }}>
+                      <span
+                        style={{
+                          fontSize: "13px",
+                          fontWeight: 500,
+                          color: "var(--ink)",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                        title={scan.payload || "Diagnostic Target"}
+                      >
+                        {scan.payload || "Diagnostic Target"}
+                      </span>
+                      {threatText && (
+                        <span
+                          style={{
+                            fontSize: "11px",
+                            color: "var(--muted)",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
+                          {threatText}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Type */}
@@ -170,10 +213,10 @@ export default async function HistoryPage() {
                     </span>
                   </div>
 
-                  {/* Status */}
+                  {/* Confidence / Status */}
                   <div>
-                    <span className="label" style={{ color: "var(--muted)", fontSize: "11px" }}>
-                      {scan.status}
+                    <span className="label" style={{ color: "var(--ink)", fontSize: "11px", fontFamily: "var(--font-mono, monospace)" }}>
+                      {scan.result?.confidenceScore ? `${Math.round(scan.result.confidenceScore)}% CONF` : scan.status}
                     </span>
                   </div>
 

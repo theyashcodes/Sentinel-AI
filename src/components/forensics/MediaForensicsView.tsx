@@ -130,6 +130,34 @@ export function MediaForensicsView() {
         ],
         rawResult: data,
       });
+
+      // Persist scan to database for audit history
+      fetch("/api/scans/record", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "FILE",
+          payload: file.name,
+          riskLevel:
+            data.verdict === "CONFIRMED_AI"
+              ? "CRITICAL"
+              : data.verdict === "LIKELY_AI"
+              ? "HIGH"
+              : data.verdict === "SCRUBBED_METADATA"
+              ? "MEDIUM"
+              : "SAFE",
+          threatCategory: `AI Media: ${data.verdict} (${data.confidenceScore}% conf)`,
+          confidenceScore: data.confidenceScore,
+          aiProvider: "SENTINEL_MEDIA_FORENSICS",
+          aiModel: "Provenance-C2PA-SynthID",
+          analysisMetadata: {
+            verdict: data.verdict,
+            generatorTool: data.generatorTool,
+            c2pa: data.c2pa?.detected,
+            synthId: data.synthId?.detectedMarker,
+          },
+        }),
+      }).catch((err) => console.error("Failed to log media scan to history:", err));
     } catch (err) {
       console.error("Forensic dissection error:", err);
       // Fallback to server route if client parsing encounters an unexpected environment issue
