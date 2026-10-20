@@ -37,6 +37,11 @@ interface HistorySecurityChecks {
   isUnicodeSpoof: boolean;
   isHttp: boolean;
   isSuspiciousTld: boolean;
+  redirect_parameter_present?: boolean;
+  redirect_destination_untrusted?: boolean;
+  redirect_chain_observed?: boolean;
+  redirect_chain_verified?: boolean;
+  networkRedirectStatus?: "NOT_TESTED" | "VERIFIED_HTTP_CHAIN" | "BLOCKED_SSRF" | "FAILED";
   warnings: HistoryWarnings[];
 }
 
@@ -469,6 +474,29 @@ export default function QrScannerPage() {
                         <CheckCircle className="h-4 w-4 text-emerald-500 shrink-0" />
                       </div>
                     ))}
+
+                    {/* Network Redirect Telemetry Status */}
+                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/60 border border-slate-200/60">
+                      <div>
+                        <span className="font-bold text-xs text-slate-800 block">Redirect Chain Telemetry</span>
+                        <span className="text-[10px] text-slate-400">
+                          {result.securityChecks?.networkRedirectStatus === "VERIFIED_HTTP_CHAIN"
+                            ? "Observed active HTTP hop chain"
+                            : result.securityChecks?.networkRedirectStatus === "BLOCKED_SSRF"
+                            ? "Gated by SSRF perimeter policy"
+                            : "Static query analysis only (no unverified 301/302 claim)"}
+                        </span>
+                      </div>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                        result.securityChecks?.networkRedirectStatus === "VERIFIED_HTTP_CHAIN"
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          : result.securityChecks?.networkRedirectStatus === "BLOCKED_SSRF"
+                          ? "bg-rose-50 text-rose-700 border border-rose-200"
+                          : "bg-slate-100 text-slate-600 border border-slate-200"
+                      }`}>
+                        {result.securityChecks?.networkRedirectStatus || "NOT TESTED"}
+                      </span>
+                    </div>
                   </div>
                 </LiquidGlassCard>
 
@@ -570,7 +598,12 @@ export default function QrScannerPage() {
                   <div className="flex items-center justify-center gap-3 text-[11px] text-slate-500 font-medium">
                     <span>Authenticity: <strong className="text-slate-800">{authenticityScore}/100</strong></span>
                     <span>•</span>
-                    <span>Confidence: <strong className="text-slate-800">{result.confidence}%</strong></span>
+                    <span title={result.confidenceLabel || "Heuristic Confidence Estimate"}>
+                      Confidence: <strong className="text-slate-800">{result.confidence}%</strong>
+                      <span className="ml-1 text-[9px] uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-semibold border border-slate-200/60">
+                        {result.confidenceType === "CALIBRATED_EVIDENCE" ? "Verified" : "Heuristic"}
+                      </span>
+                    </span>
                   </div>
                 </div>
               ) : (
@@ -656,13 +689,18 @@ export default function QrScannerPage() {
                         scanId: scan.id,
                         decodedText: scan.payload || "",
                         extractedUrl: scan.payload || "",
-                        securityChecks: scan.evidenceMetadata?.securityChecks || {
-                          isShortener: false,
-                          isPunycode: false,
-                          isUnicodeSpoof: false,
-                          isHttp: false,
-                          isSuspiciousTld: false,
-                          warnings: []
+                        securityChecks: {
+                          isShortener: scan.evidenceMetadata?.securityChecks?.isShortener ?? false,
+                          isPunycode: scan.evidenceMetadata?.securityChecks?.isPunycode ?? false,
+                          isUnicodeSpoof: scan.evidenceMetadata?.securityChecks?.isUnicodeSpoof ?? false,
+                          isHttp: scan.evidenceMetadata?.securityChecks?.isHttp ?? false,
+                          isSuspiciousTld: scan.evidenceMetadata?.securityChecks?.isSuspiciousTld ?? false,
+                          redirect_parameter_present: scan.evidenceMetadata?.securityChecks?.redirect_parameter_present ?? false,
+                          redirect_destination_untrusted: scan.evidenceMetadata?.securityChecks?.redirect_destination_untrusted ?? false,
+                          redirect_chain_observed: scan.evidenceMetadata?.securityChecks?.redirect_chain_observed ?? false,
+                          redirect_chain_verified: scan.evidenceMetadata?.securityChecks?.redirect_chain_verified ?? false,
+                          networkRedirectStatus: scan.evidenceMetadata?.securityChecks?.networkRedirectStatus ?? "NOT_TESTED",
+                          warnings: (scan.evidenceMetadata?.securityChecks?.warnings as any) || []
                         },
                         normalized: scan.payload || "",
                         riskScore: rScore,

@@ -4,7 +4,8 @@
 import {
   ParsedUrlDetails,
   URLSecurityAnalyzer,
-  HOMOGLYPH_MAP
+  HOMOGLYPH_MAP,
+  HIGH_ABUSE_TLDS
 } from "./url-security";
 import {
   ScoreBreakdown,
@@ -27,6 +28,8 @@ export interface RiskEvaluationResult {
   authenticityScore: number; // 0 - 100 (100 - riskScore)
   threatLevel: ThreatClassification;
   confidence: number;        // 0 - 100 (measurement confidence)
+  confidenceType: "HEURISTIC_ESTIMATE" | "CALIBRATED_EVIDENCE";
+  confidenceLabel: string;
   threatType: string;
   reasoning: string;
   indicators: string[];
@@ -186,50 +189,104 @@ export class QRRiskEngine {
     // DIMENSION 3: Redirect Risk & Chain Behaviour (0 - 20)
     // ─────────────────────────────────────────────────────────────
     let redirectScore = 0;
-    if (parsed.redirectAudit.hasNestedRedirect) {
-      if (parsed.redirectAudit.hopDepth >= 2) {
-        redirectScore = 20;
-        evidenceList.push({
-          dimension: "Redirect Integrity",
-          pointsAwarded: 20,
-          maxPoints: 20,
-          title: "Multi-Hop Chained Redirect Parameters",
-          description: `Deeply nested redirect parameters detected (depth ${parsed.redirectAudit.hopDepth}). Masks final landing page.`,
-          severity: "critical",
-        });
-        warnings.push({
-          code: "NESTED_REDIRECT_CHAIN",
-          title: "Multi-Layer Nested Redirection",
-          description: `URL contains chained redirect parameters leading to: ${parsed.redirectAudit.normalizedCandidate}`,
-          severity: "high",
-        });
-        indicators.push(`Deeply nested redirect chain targeting ${parsed.redirectAudit.normalizedCandidate}`);
-      } else {
-        redirectScore = 14;
-        evidenceList.push({
-          dimension: "Redirect Integrity",
-          pointsAwarded: 14,
-          maxPoints: 20,
-          title: "External Destination Query Parameter",
-          description: `URL passes an external landing destination in query parameters: ${parsed.redirectAudit.candidateUrl}`,
-          severity: "medium",
-        });
-        warnings.push({
-          code: "REDIRECT_PARAM_DETECTED",
-          title: "Embedded Forwarding Target",
-          description: `Potential open redirect pattern passing destination: ${parsed.redirectAudit.candidateUrl}`,
-          severity: "medium",
-        });
-        indicators.push(`Embedded destination parameter: ${parsed.redirectAudit.candidateUrl}`);
-      }
-    } else if (parsed.isShortener) {
-      redirectScore = 10;
+    const { redirectAudit, isShortener } = parsed;
+
+    if (redirectAudit.redirect_chain_verified) {
+      // Active Network Redirect Chain Verified via HTTP
+      redirectScore = 15;
       evidenceList.push({
         dimension: "Redirect Integrity",
-        pointsAwarded: 10,
+        pointsAwarded: 15,
+        maxPoints: 20,
+        title: "Active HTTP Redirect Chain Verified",
+        description: `Controlled HTTP request verified redirection to: ${redirectAudit.normalizedCandidate || "target destination"}.`,
+        severity: "medium",
+      });
+      warnings.push({
+        code: "HTTP_REDIRECT_CHAIN_VERIFIED",
+        title: "Verified HTTP Redirection",
+        description: `Observed network redirect chain verified over active HTTP transport.`,
+        severity: "medium",
+      });
+    } else if (redirectAudit.redirect_chain_observed) {
+      // Multiple chained nested parameters parsed statically (depth >= 2)
+      redirectScore = 18;
+      evidenceList.push({
+        dimension: "Redirect Integrity",
+        pointsAwarded: 18,
+        maxPoints: 20,
+        title: "Multi-Hop Chained Redirect Parameters",
+        description: `Deeply nested redirect parameters detected (depth ${redirectAudit.hopDepth}). Statically masks final landing page.`,
+        severity: "critical",
+      });
+      warnings.push({
+        code: "NESTED_REDIRECT_CHAIN",
+        title: "Multi-Layer Nested Redirection",
+        description: `URL contains chained redirect parameters leading to: ${redirectAudit.normalizedCandidate}`,
+        severity: "high",
+      });
+      indicators.push(`Deeply nested redirect chain targeting ${redirectAudit.normalizedCandidate}`);
+    } else if (redirectAudit.redirect_destination_untrusted) {
+      // Untrusted Cross-Origin Redirect Destination
+      // Distinguish high-abuse TLD / raw IP targets from standard cross-origin targets
+      const candidateHost = redirectAudit.normalizedCandidate ? new URL(redirectAudit.normalizedCandidate).hostname : "";
+      const candidateDomainInfo = URLSecurityAnalyzer.parseDomain(candidateHost);
+      const isCandidateHighAbuse = HIGH_ABUSE_TLDS.has(candidateDomainInfo.tld) || candidateDomainInfo.isIpAddress;
+
+      const penalty = isCandidateHighAbuse ? 14 : 8;
+      redirectScore = penalty;
+
+      evidenceList.push({
+        dimension: "Redirect Integrity",
+        pointsAwarded: penalty,
+        maxPoints: 20,
+        title: "Untrusted Cross-Origin Redirect Destination",
+        description: `URL query parameter forwards traffic to an external, untrusted third-party domain: ${candidateHost || redirectAudit.candidateUrl}`,
+        severity: isCandidateHighAbuse ? "high" : "medium",
+      });
+      warnings.push({
+        code: "UNTRUSTED_CROSS_ORIGIN_REDIRECT",
+        title: "Untrusted Cross-Origin Redirection",
+        description: `Potential open redirect vector forwarding to third-party host: ${candidateHost}`,
+        severity: isCandidateHighAbuse ? "high" : "medium",
+      });
+      indicators.push(`Untrusted cross-origin redirect destination: ${candidateHost}`);
+    } else if (redirectAudit.redirect_parameter_present && (redirectAudit.isSameOrigin || redirectAudit.isSameRegistrableDomain || redirectAudit.isReservedSyntheticDomain)) {
+      // Safe / Benign Navigation or Synthetic RFC 2606 / RFC 6761 Destination (0 points)
+      redirectScore = 0;
+      evidenceList.push({
+        dimension: "Redirect Integrity",
+        pointsAwarded: 0,
+        maxPoints: 20,
+        title: redirectAudit.isReservedSyntheticDomain ? "Reserved Synthetic Destination (RFC 2606)" : "Internal Safe Redirection Parameter",
+        description: redirectAudit.isReservedSyntheticDomain
+          ? `Destination is a reserved synthetic test domain (${redirectAudit.normalizedCandidate}). Network status: NOT TESTED (static analysis).`
+          : `Redirect parameter targets same origin or internal registrable domain (${parsed.domainInfo.registrableDomain}). No open redirect vulnerability.`,
+        severity: "info",
+      });
+    } else if (redirectAudit.redirect_parameter_present) {
+      // Redirect parameter present without untrusted cross-origin destination (e.g. relative path, benign parameter name)
+      redirectScore = 0;
+      evidenceList.push({
+        dimension: "Redirect Integrity",
+        pointsAwarded: 0,
+        maxPoints: 20,
+        title: "Benign Navigation Parameter",
+        description: "Redirect/navigation parameter detected with no untrusted external destination.",
+        severity: "info",
+      });
+    }
+
+    // Link Shortener Check (can coexist with redirect parameters or stand alone)
+    if (isShortener) {
+      const shortenerAdd = redirectScore > 0 ? 8 : 10;
+      redirectScore = Math.min(20, redirectScore + shortenerAdd);
+      evidenceList.push({
+        dimension: "Redirect Integrity",
+        pointsAwarded: shortenerAdd,
         maxPoints: 20,
         title: "Known Link Shortener Service",
-        description: `Host (${parsed.domainInfo.registrableDomain}) is a public shortening service that hides the real destination.`,
+        description: `Host (${parsed.domainInfo.registrableDomain}) is a public shortening service that obscures the real destination.`,
         severity: "medium",
       });
       warnings.push({
@@ -239,16 +296,20 @@ export class QRRiskEngine {
         severity: "medium",
       });
       indicators.push(`Link shortener masks real destination (${parsed.domainInfo.registrableDomain})`);
-    } else {
+    }
+
+    if (redirectScore === 0 && !isShortener && !redirectAudit.redirect_parameter_present) {
       evidenceList.push({
         dimension: "Redirect Integrity",
         pointsAwarded: 0,
         maxPoints: 20,
         title: "Direct Destination",
-        description: "Direct web target with no suspicious redirect parameters or shortener masking.",
+        description: "Direct web target with no redirect query parameters, shortener masking, or observed chains.",
         severity: "info",
       });
     }
+
+    redirectScore = Math.min(20, redirectScore);
 
     // ─────────────────────────────────────────────────────────────
     // DIMENSION 4: URL Structure, User-Info Abuse & SSRF (0 - 15)
@@ -470,7 +531,7 @@ export class QRRiskEngine {
       threatType = "BRAND_IMPERSONATION";
     } else if (parsed.homoglyphAudit.hasHomoglyphSpoof) {
       threatType = "HOMOGRAPH_PHISHING";
-    } else if (parsed.redirectAudit.hasNestedRedirect) {
+    } else if (parsed.redirectAudit.redirect_destination_untrusted || parsed.redirectAudit.redirect_chain_observed || parsed.redirectAudit.redirect_chain_verified) {
       threatType = "MALICIOUS_REDIRECT";
     } else if (totalRiskScore >= 40) {
       threatType = "SUSPICIOUS_URL";
@@ -494,11 +555,25 @@ export class QRRiskEngine {
     }
 
     // Measurement Confidence (Evidence Depth)
-    let confidence = 75;
-    if (parsed.domainInfo.registrableDomain) confidence += 10;
-    if (parsed.redirectAudit.hasNestedRedirect !== undefined) confidence += 5;
-    if (indicators.length > 0) confidence += 5;
-    confidence = Math.min(98, confidence);
+    // Requirement 6: If confidence is not derived from a calibrated model or defensible evidence calculation,
+    // label it as a heuristic confidence estimate or calibrate against verifiable signals.
+    let confidence = 60;
+    let confidenceType: "HEURISTIC_ESTIMATE" | "CALIBRATED_EVIDENCE" = "HEURISTIC_ESTIMATE";
+    let confidenceLabel = "Heuristic Confidence Estimate";
+
+    if (parsed.redirectAudit.redirect_chain_verified) {
+      // Active Network Redirect Telemetry Verified
+      confidence = 90;
+      confidenceType = "CALIBRATED_EVIDENCE";
+      confidenceLabel = "Calibrated Evidence-Based Confidence";
+    } else {
+      // Static Lexical & Syntactic Heuristic Analysis
+      if (parsed.domainInfo.registrableDomain) confidence += 5;
+      if (parsed.protocol === "https" || parsed.protocol === "http") confidence += 5;
+      confidence = Math.min(70, confidence);
+      confidenceType = "HEURISTIC_ESTIMATE";
+      confidenceLabel = "Heuristic Confidence Estimate";
+    }
 
     const scoreBreakdown: ScoreBreakdown = {
       brandImpersonationScore: brandScore,
@@ -515,6 +590,8 @@ export class QRRiskEngine {
       authenticityScore,
       threatLevel,
       confidence,
+      confidenceType,
+      confidenceLabel,
       threatType,
       reasoning,
       indicators: indicators.length > 0 ? indicators : ["Standard canonical structure", "Clean lexical profile"],

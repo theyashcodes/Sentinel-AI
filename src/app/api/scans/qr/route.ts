@@ -255,6 +255,8 @@ export async function POST(req: NextRequest) {
       authenticityScore: riskResult.authenticityScore,
       riskLevel: riskResult.threatLevel,
       confidence: riskResult.confidence,
+      confidenceType: riskResult.confidenceType,
+      confidenceLabel: riskResult.confidenceLabel,
       threatType: riskResult.threatType,
       reasoning: riskResult.reasoning,
       indicators: riskResult.indicators,

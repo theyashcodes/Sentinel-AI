@@ -15,6 +15,12 @@ export interface QRScanSecurityCheckResult {
   hasNestedRedirect?: boolean;
   hasUserInfo?: boolean;
   hasBrandMismatch?: boolean;
+  // Specific Required Redirection Signals (Req 1)
+  redirect_parameter_present: boolean;
+  redirect_destination_untrusted: boolean;
+  redirect_chain_observed: boolean;
+  redirect_chain_verified: boolean;
+  networkRedirectStatus: "NOT_TESTED" | "VERIFIED_HTTP_CHAIN" | "BLOCKED_SSRF" | "FAILED";
   warnings: QRScanWarning[];
 }
 
@@ -37,6 +43,13 @@ export interface TLSData {
   valid_to?: string;
 }
 
+export interface NetworkHopRecord {
+  hopIndex: number;
+  statusCode: number;
+  locationHeader?: string;
+  destinationUrl: string;
+}
+
 export interface QREvidence {
   whois?: Record<string, unknown> | null;
   dns?: DNSData | null;
@@ -46,6 +59,8 @@ export interface QREvidence {
   finalUrl?: string;
   statusCode?: number;
   staticRedirectCandidate?: string | null;
+  networkHops?: NetworkHopRecord[];
+  networkRedirectStatus?: "NOT_TESTED" | "VERIFIED_HTTP_CHAIN" | "BLOCKED_SSRF" | "FAILED";
   ssrfProtected?: boolean;
 }
 
@@ -79,7 +94,9 @@ export interface QRScanResponse {
   riskScore: number; // 0 - 100 (higher = more danger)
   authenticityScore: number; // 0 - 100 (100 - riskScore)
   riskLevel: ThreatClassification;
-  confidence: number; // 0 - 100 (justified measurement confidence)
+  confidence: number; // 0 - 100 (measurement confidence)
+  confidenceType?: "HEURISTIC_ESTIMATE" | "CALIBRATED_EVIDENCE";
+  confidenceLabel?: string;
   threatType: string;
   reasoning: string;
   indicators: string[];

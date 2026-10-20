@@ -110,13 +110,48 @@ export interface ParsedDomainInfo {
   isPrivateOrLoopback: boolean;
 }
 
+// RFC 2606 and RFC 6761 Reserved Synthetic Domains and TLDs
+export const RESERVED_SYNTHETIC_TLDS = new Set([
+  "example",   // RFC 2606
+  "invalid",   // RFC 2606
+  "test",      // RFC 2606
+  "localhost", // RFC 6761
+]);
+
+export const RESERVED_SYNTHETIC_DOMAINS = new Set([
+  "example.com",
+  "example.net",
+  "example.org",
+  "example.edu",
+]);
+
+export function isReservedSyntheticDestination(hostname: string): boolean {
+  const lower = hostname.toLowerCase().trim();
+  if (RESERVED_SYNTHETIC_DOMAINS.has(lower)) return true;
+  for (const dom of RESERVED_SYNTHETIC_DOMAINS) {
+    if (lower.endsWith("." + dom)) return true;
+  }
+  const parts = lower.split(".");
+  const tld = parts[parts.length - 1];
+  if (tld && RESERVED_SYNTHETIC_TLDS.has(tld)) return true;
+  return false;
+}
+
 export interface NestedRedirectInspection {
   hasNestedRedirect: boolean;
+  redirect_parameter_present: boolean;
+  redirect_destination_untrusted: boolean;
+  redirect_chain_observed: boolean;
+  redirect_chain_verified: boolean;
+  networkRedirectStatus: "NOT_TESTED" | "VERIFIED_HTTP_CHAIN" | "BLOCKED_SSRF" | "FAILED";
   paramName?: string;
   candidateUrl?: string;
   normalizedCandidate?: string;
   hopDepth: number;
   isExternalDestination: boolean;
+  isSameOrigin: boolean;
+  isSameRegistrableDomain: boolean;
+  isReservedSyntheticDomain: boolean;
 }
 
 export interface BrandImpersonationAudit {
@@ -472,15 +507,26 @@ export class URLSecurityAnalyzer {
     maxDepth = 3
   ): NestedRedirectInspection {
     const redirectKeys = [
-      "url", "redirect", "redirect_url", "redirect_to", "dest", "destination",
-      "target", "next", "r", "to", "link", "return_to", "forward", "out", "u", "go"
+      "redirect", "redirect_url", "redirect_to", "next", "continue", "return", "return_to",
+      "url", "dest", "destination", "target", "r", "to", "link", "forward", "out", "u", "go", "goto", "returnto"
     ];
 
     let currentUrl = urlObj.href;
     let candidateUrl: string | undefined = undefined;
     let normalizedCandidate: string | undefined = undefined;
     let depth = 0;
+    let redirectParamFound = false;
+    let detectedParamName: string | undefined = undefined;
     const seen = new Set<string>([urlObj.href]);
+
+    // Check if initial URL has any recognized redirect query parameter
+    for (const key of redirectKeys) {
+      if (urlObj.searchParams.has(key)) {
+        redirectParamFound = true;
+        detectedParamName = key;
+        break;
+      }
+    }
 
     while (depth < maxDepth) {
       let foundInStep = false;
@@ -494,11 +540,17 @@ export class URLSecurityAnalyzer {
       for (const key of redirectKeys) {
         const val = parsedCurrent.searchParams.get(key);
         if (val && val.trim().length > 0 && val.length < 2048) {
+          redirectParamFound = true;
+          if (!detectedParamName) detectedParamName = key;
           let candidate = val.trim();
-          // Check if candidate is encoded URL
+
+          // Check if candidate is encoded URL or protocol-relative
           if (!candidate.startsWith("http://") && !candidate.startsWith("https://")) {
             if (candidate.startsWith("//")) {
               candidate = "https:" + candidate;
+            } else if (candidate.startsWith("/")) {
+              // Relative path redirect target (same-origin by definition)
+              candidate = `${urlObj.origin}${candidate}`;
             } else if (candidate.includes(".") && !candidate.includes(" ")) {
               candidate = "https://" + candidate;
             }
@@ -521,7 +573,7 @@ export class URLSecurityAnalyzer {
               break;
             }
           } catch {
-            // Not a valid URL
+            // Not a parseable URL
           }
         }
       }
@@ -529,22 +581,173 @@ export class URLSecurityAnalyzer {
       if (!foundInStep) break;
     }
 
+    let isSameOrigin = false;
+    let isSameRegistrableDomain = false;
+    let isReservedSyntheticDomain = false;
     let isExternalDestination = false;
+    let redirect_destination_untrusted = false;
+
     if (normalizedCandidate) {
       try {
-        const targetHost = new URL(normalizedCandidate).hostname.toLowerCase();
+        const candidateObj = new URL(normalizedCandidate);
+        const targetHost = candidateObj.hostname.toLowerCase();
         const baseHost = urlObj.hostname.toLowerCase();
-        isExternalDestination = targetHost !== baseHost && !targetHost.endsWith("." + baseHost);
-      } catch {}
+
+        const baseDomainInfo = this.parseDomain(baseHost);
+        const targetDomainInfo = this.parseDomain(targetHost);
+
+        isSameOrigin = targetHost === baseHost && candidateObj.port === urlObj.port && candidateObj.protocol === urlObj.protocol;
+        isSameRegistrableDomain = Boolean(
+          baseDomainInfo.registrableDomain &&
+          targetDomainInfo.registrableDomain &&
+          baseDomainInfo.registrableDomain === targetDomainInfo.registrableDomain
+        );
+        isReservedSyntheticDomain = isReservedSyntheticDestination(targetHost);
+
+        isExternalDestination = !isSameOrigin && !isSameRegistrableDomain;
+
+        // An external destination is UNTRUSTED only if it is NOT same-origin, NOT same-registrable-domain,
+        // and NOT a reserved synthetic domain (.example, .test, example.com, etc.)
+        redirect_destination_untrusted = isExternalDestination && !isReservedSyntheticDomain;
+      } catch {
+        // Fallback safely
+      }
     }
 
     return {
       hasNestedRedirect: Boolean(candidateUrl),
-      paramName: candidateUrl ? "redirect-query-param" : undefined,
+      redirect_parameter_present: redirectParamFound,
+      redirect_destination_untrusted,
+      redirect_chain_observed: depth >= 2,
+      redirect_chain_verified: false, // NEVER claimed from static URL parsing
+      networkRedirectStatus: "NOT_TESTED", // Marked NOT TESTED until an active controlled HTTP request runs
+      paramName: detectedParamName,
       candidateUrl,
       normalizedCandidate,
       hopDepth: depth,
       isExternalDestination,
+      isSameOrigin,
+      isSameRegistrableDomain,
+      isReservedSyntheticDomain,
+    };
+  }
+
+  /**
+   * Controlled Active HTTP Redirect Chain Verification with SSRF protection
+   */
+  static async verifyControlledNetworkRedirect(
+    startUrl: string,
+    options: { maxHops?: number; allowLoopback?: boolean; timeoutMs?: number } = {}
+  ): Promise<{
+    redirect_chain_verified: boolean;
+    networkRedirectStatus: "NOT_TESTED" | "VERIFIED_HTTP_CHAIN" | "BLOCKED_SSRF" | "FAILED";
+    networkHops: Array<{ hopIndex: number; statusCode: number; locationHeader?: string; destinationUrl: string }>;
+    finalUrl: string;
+    totalHops: number;
+    error?: string;
+  }> {
+    const maxHops = options.maxHops ?? 5;
+    const allowLoopback = options.allowLoopback ?? false;
+    const timeoutMs = options.timeoutMs ?? 3000;
+
+    let currentUrl = startUrl;
+    const networkHops: Array<{ hopIndex: number; statusCode: number; locationHeader?: string; destinationUrl: string }> = [];
+    const visited = new Set<string>();
+
+    for (let hop = 0; hop < maxHops; hop++) {
+      let parsed: URL;
+      try {
+        parsed = new URL(currentUrl);
+      } catch {
+        return {
+          redirect_chain_verified: networkHops.length > 0,
+          networkRedirectStatus: networkHops.length > 0 ? "VERIFIED_HTTP_CHAIN" : "FAILED",
+          networkHops,
+          finalUrl: currentUrl,
+          totalHops: networkHops.length,
+          error: `Invalid URL encountered in hop ${hop + 1}: ${currentUrl}`,
+        };
+      }
+
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        return {
+          redirect_chain_verified: networkHops.length > 0,
+          networkRedirectStatus: "BLOCKED_SSRF",
+          networkHops,
+          finalUrl: currentUrl,
+          totalHops: networkHops.length,
+          error: `Disallowed protocol: ${parsed.protocol}`,
+        };
+      }
+
+      // Check SSRF protection unless specifically in loopback mock mode
+      const domainInfo = this.parseDomain(parsed.hostname);
+      if (!allowLoopback && domainInfo.isPrivateOrLoopback) {
+        return {
+          redirect_chain_verified: networkHops.length > 0,
+          networkRedirectStatus: "BLOCKED_SSRF",
+          networkHops,
+          finalUrl: currentUrl,
+          totalHops: networkHops.length,
+          error: `SSRF blocked destination: ${parsed.hostname}`,
+        };
+      }
+
+      visited.add(currentUrl);
+
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+        const res = await fetch(currentUrl, {
+          method: "HEAD",
+          redirect: "manual",
+          signal: controller.signal,
+          headers: {
+            "User-Agent": "Sentinel-AI-Security-Probe/2.0",
+          },
+        });
+        clearTimeout(timeout);
+
+        const status = res.status;
+        const location = res.headers.get("location");
+
+        if ([301, 302, 303, 307, 308].includes(status) && location) {
+          const nextUrl = new URL(location, currentUrl).href;
+          networkHops.push({
+            hopIndex: hop + 1,
+            statusCode: status,
+            locationHeader: location,
+            destinationUrl: nextUrl,
+          });
+
+          if (visited.has(nextUrl)) {
+            // Loop detected
+            break;
+          }
+          currentUrl = nextUrl;
+        } else {
+          // Terminal response reached
+          break;
+        }
+      } catch (err: any) {
+        return {
+          redirect_chain_verified: networkHops.length > 0,
+          networkRedirectStatus: networkHops.length > 0 ? "VERIFIED_HTTP_CHAIN" : "FAILED",
+          networkHops,
+          finalUrl: currentUrl,
+          totalHops: networkHops.length,
+          error: err?.message || "Network request failed",
+        };
+      }
+    }
+
+    return {
+      redirect_chain_verified: networkHops.length > 0,
+      networkRedirectStatus: "VERIFIED_HTTP_CHAIN",
+      networkHops,
+      finalUrl: currentUrl,
+      totalHops: networkHops.length,
     };
   }
 
