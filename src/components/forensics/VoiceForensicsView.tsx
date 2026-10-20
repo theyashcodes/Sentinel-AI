@@ -178,8 +178,9 @@ export function VoiceForensicsView() {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       const audioCtx = new AudioCtx();
       
-      const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-      const res = await analyzeAudioBuffer(audioBuffer, file.name);
+      const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer.slice(0));
+      const rawBytes = new Uint8Array(arrayBuffer);
+      const res = await analyzeAudioBuffer(audioBuffer, file.name, rawBytes);
       setResult(res);
 
       // Notify CyBro
@@ -193,7 +194,9 @@ export function VoiceForensicsView() {
           `AI Probability: ${res.aiProbabilityScore}%`,
           `Pitch Jitter: ${res.acousticMetrics.jitterPercent}%`,
           `Spectral Cutoff: ${res.acousticMetrics.spectralCutoffKHz} kHz`,
-          `Vocoder Phase Smear: ${(res.acousticMetrics.phaseDispersionIndex * 100).toFixed(0)}/100`,
+          res.acousticMetrics.aiTagDetected
+            ? `Marker: ${res.acousticMetrics.aiTagDetected}`
+            : `Noise Floor: ${res.acousticMetrics.digitalSilenceDetected ? "Digital Zero Pauses" : "Analog Mic"}`,
         ],
         rawResult: res,
       });
