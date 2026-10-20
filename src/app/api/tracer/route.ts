@@ -27,7 +27,15 @@ export async function POST(req: NextRequest) {
 
     // Save scan to database for audit history
     try {
-      const session = await auth.api.getSession({ headers: await headers() });
+      let session = null;
+      try {
+        session = await auth.api.getSession({ headers: req.headers });
+      } catch {}
+      if (!session?.user?.id) {
+        try {
+          session = await auth.api.getSession({ headers: await headers() });
+        } catch {}
+      }
       if (session?.user?.id) {
         const payloadHash = createHash("sha256").update(url).digest("hex");
         const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "127.0.0.1";

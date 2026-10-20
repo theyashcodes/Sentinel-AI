@@ -6,7 +6,17 @@ import { createHash } from "crypto";
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
+    let session = null;
+    try {
+      session = await auth.api.getSession({ headers: req.headers });
+    } catch {}
+
+    if (!session?.user?.id) {
+      try {
+        session = await auth.api.getSession({ headers: await headers() });
+      } catch {}
+    }
+
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

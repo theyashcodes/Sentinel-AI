@@ -78,11 +78,13 @@ export function EmailAuditView() {
         formData.append("file", file);
         res = await fetch("/api/email-audit", {
           method: "POST",
+          credentials: "include",
           body: formData,
         });
       } else {
         res = await fetch("/api/email-audit", {
           method: "POST",
+          credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ rawText }),
         });
@@ -106,6 +108,10 @@ export function EmailAuditView() {
       const data = await res.json();
 
       setResult(data);
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("sentinel:scan-updated"));
+      }
 
       // Notify CyBro for real-time optimal safe action advisory
       const isThreat = data.verdict === "CRITICAL_PHISHING" || data.verdict === "SUSPICIOUS";

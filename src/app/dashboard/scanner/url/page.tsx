@@ -22,12 +22,17 @@ export default function UrlScannerPage() {
     try {
       const response = await fetch("/api/scans/url", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || data.error || "Failed to scan URL");
       setResult(data);
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("sentinel:scan-updated"));
+      }
 
       // Notify CyBro for real-time optimal safe action advisory
       const riskLevel = String(data.riskLevel || data.threatLevel || "SAFE").toUpperCase();

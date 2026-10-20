@@ -134,6 +134,7 @@ export function MediaForensicsView() {
       // Persist scan to database for audit history
       fetch("/api/scans/record", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type: "FILE",
@@ -157,7 +158,13 @@ export function MediaForensicsView() {
             synthId: data.synthId?.detectedMarker,
           },
         }),
-      }).catch((err) => console.error("Failed to log media scan to history:", err));
+      })
+        .then((r) => {
+          if (r.ok && typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("sentinel:scan-updated"));
+          }
+        })
+        .catch((err) => console.error("Failed to log media scan to history:", err));
     } catch (err) {
       console.error("Forensic dissection error:", err);
       // Fallback to server route if client parsing encounters an unexpected environment issue

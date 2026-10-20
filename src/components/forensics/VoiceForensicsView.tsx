@@ -204,6 +204,7 @@ export function VoiceForensicsView() {
       // Persist scan to database for audit history
       fetch("/api/scans/record", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type: "FILE",
@@ -221,7 +222,13 @@ export function VoiceForensicsView() {
             verdict: res.verdict,
           },
         }),
-      }).catch((err) => console.error("Failed to log voice scan to history:", err));
+      })
+        .then((r) => {
+          if (r.ok && typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("sentinel:scan-updated"));
+          }
+        })
+        .catch((err) => console.error("Failed to log voice scan to history:", err));
 
       audioCtx.close();
     } catch (err) {
@@ -300,6 +307,7 @@ export function VoiceForensicsView() {
     // Persist preset scan to database
     fetch("/api/scans/record", {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         type: "FILE",
@@ -315,7 +323,13 @@ export function VoiceForensicsView() {
           verdict: presetData.verdict,
         },
       }),
-    }).catch((err) => console.error("Failed to log preset scan to history:", err));
+    })
+      .then((r) => {
+        if (r.ok && typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("sentinel:scan-updated"));
+        }
+      })
+      .catch((err) => console.error("Failed to log preset scan to history:", err));
   };
 
   const handleReset = () => {

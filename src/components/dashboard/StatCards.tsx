@@ -10,6 +10,9 @@ interface StatCardsProps {
   suspiciousScans?: number;
   urlScansCount?: number;
   qrScansCount?: number;
+  voiceScansCount?: number;
+  mediaScansCount?: number;
+  emailScansCount?: number;
 }
 
 const panelStyle: React.CSSProperties = {
@@ -32,7 +35,21 @@ export function StatCards({
   suspiciousScans = 0,
   urlScansCount = 0,
   qrScansCount = 0,
+  voiceScansCount = 0,
+  mediaScansCount = 0,
+  emailScansCount = 0,
 }: StatCardsProps) {
+  const parts: string[] = [];
+  if (urlScansCount > 0) parts.push(`${urlScansCount} URL`);
+  if (qrScansCount > 0) parts.push(`${qrScansCount} QR`);
+  if (voiceScansCount > 0) parts.push(`${voiceScansCount} Voice`);
+  if (mediaScansCount > 0) parts.push(`${mediaScansCount} Media`);
+  if (emailScansCount > 0) parts.push(`${emailScansCount} Email`);
+
+  const breakdownMeta = parts.length > 0
+    ? parts.join(" · ")
+    : "Multi-vector ML engines ready";
+
   const cards = [
     {
       id: "stat-scans",
@@ -72,8 +89,8 @@ export function StatCards({
       href: "/dashboard/history",
       label: "Engine Scan Breakdown",
       icon: Layers,
-      value: `${urlScansCount} URLs`,
-      meta: `${qrScansCount} QR Codes inspected`,
+      value: `${totalScans} Total Scans`,
+      meta: breakdownMeta,
       metaColor: "var(--accent)",
       spark: "M0 20 Q30 10 60 25 T100 12",
       sparkColor: "var(--accent)",

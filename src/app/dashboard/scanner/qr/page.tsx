@@ -175,6 +175,7 @@ export default function QrScannerPage() {
 
       const response = await fetch("/api/scans/qr", {
         method: "POST",
+        credentials: "include",
         body: formData,
       });
 
@@ -197,6 +198,10 @@ export default function QrScannerPage() {
 
       setResult(data);
       fetchHistory();
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("sentinel:scan-updated"));
+      }
 
       try {
         const isThreat = Boolean(data.riskLevel && data.riskLevel !== "SAFE" && data.riskLevel !== "LOW");

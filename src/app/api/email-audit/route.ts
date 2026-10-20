@@ -39,7 +39,15 @@ export async function POST(req: NextRequest) {
 
     // Save scan to database for audit history
     try {
-      const session = await auth.api.getSession({ headers: await headers() });
+      let session = null;
+      try {
+        session = await auth.api.getSession({ headers: req.headers });
+      } catch {}
+      if (!session?.user?.id) {
+        try {
+          session = await auth.api.getSession({ headers: await headers() });
+        } catch {}
+      }
       if (session?.user?.id) {
         const senderEmail = report.sender?.fromEmail || report.sender?.displayName || "Unknown Sender";
         const payloadStr = report.subject ? `${report.subject} (${senderEmail})` : senderEmail;

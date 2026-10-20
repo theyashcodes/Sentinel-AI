@@ -34,6 +34,7 @@ export function RedirectTracerView() {
     try {
       const res = await fetch("/api/tracer", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: toScan }),
       });
@@ -45,6 +46,10 @@ export function RedirectTracerView() {
 
       setResult(data);
 
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("sentinel:scan-updated"));
+      }
+
       // Notify CyBro for real-time optimal safe action advisory
       notifyCyBroScanComplete({
         tool: "tracer",
@@ -53,10 +58,10 @@ export function RedirectTracerView() {
         threatLevel: data.impersonation?.detected ? "malicious" : "clean",
         summary: data.impersonation?.detected
           ? `Homoglyph impersonation targeting ${data.impersonation.targetBrand || "trusted brand"}`
-          : `Safely resolved ${data.hops?.length || 1} hops to ${data.destinationUrl || toScan}`,
+          : `Safely resolved ${data.hops?.length || 1} hops to ${data.finalUrl || toScan}`,
         findings: data.impersonation?.detected
           ? [`Spoofed Brand: ${data.impersonation.targetBrand}`, `Punycode: ${data.impersonation.punycode}`]
-          : [`Final destination: ${data.destinationUrl}`],
+          : [`Final destination: ${data.finalUrl || toScan}`],
         rawResult: data,
       });
     } catch (err) {
