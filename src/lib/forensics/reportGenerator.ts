@@ -4,7 +4,7 @@ export interface ForensicReportData {
   caseId: string;
   timestamp: string;
   examiner: string;
-  type: "VOICE" | "URL" | "QR" | "MEDIA" | "EMAIL" | "TRACER" | "FILE" | "SMISHING" | "MESSAGE";
+  type: "VOICE" | "URL" | "QR" | "MEDIA" | "EMAIL" | "TRACER" | "FILE";
   target: string;
   riskLevel: "SAFE" | "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
   confidenceScore: number;
