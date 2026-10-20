@@ -193,10 +193,10 @@ await runTest("8. Benign Encoded Redirect Parameter (https://example.com/login?r
     `Redirect integrity score must be 0 for benign redirect, got: ${riskResult.scoreBreakdown.redirectRiskScore}`
   );
 
-  // Requirement 3: Safe comparison for reserved .example synthetic domains
-  const reservedResult = QRSecurityChecker.evaluateSecurity("https://service.example/auth?next=https%3A%2F%2Fapp.example");
-  assert.equal(reservedResult.securityChecks.redirect_destination_untrusted, false, "Reserved .example must not be marked untrusted");
-  assert.equal(reservedResult.riskResult.scoreBreakdown.redirectRiskScore, 0, "Reserved .example redirect score must be 0");
+  // Requirement 3: Safe comparison for same-registrable-domain synthetic targets
+  const sameRegistrableResult = QRSecurityChecker.evaluateSecurity("https://auth.company.example/auth?next=https%3A%2F%2Fapp.company.example");
+  assert.equal(sameRegistrableResult.securityChecks.redirect_destination_untrusted, false, "Same registrable domain must not be marked untrusted");
+  assert.equal(sameRegistrableResult.riskResult.scoreBreakdown.redirectRiskScore, 0, "Same registrable domain redirect score must be 0");
 
   // Requirement 6: Confidence is calibrated and labeled as heuristic estimate
   assert.equal(riskResult.confidenceType, "HEURISTIC_ESTIMATE");
@@ -282,6 +282,100 @@ await runTest("11. Clean URL with No Redirect Parameter (https://example.com/pri
   assert.equal(securityChecks.redirect_chain_verified, false, "redirect_chain_verified must be false");
   assert.equal(securityChecks.networkRedirectStatus, "NOT_TESTED", "networkRedirectStatus must be NOT_TESTED");
   assert.equal(riskResult.scoreBreakdown.redirectRiskScore, 0, "redirectRiskScore must be 0");
+});
+
+// ─────────────────────────────────────────────────────────────
+// Test 12: Test 05 Canonical Evaluation (Brand Impersonation + External Redirect)
+// URL: https://paypal.com.login.example/verify?next=https%3A%2F%2Funtrusted.example%2Fsession
+// ─────────────────────────────────────────────────────────────
+await runTest("12. Test 05 Canonical Evaluation (https://paypal.com.login.example/verify?next=...)", () => {
+  const testUrl = "https://paypal.com.login.example/verify?next=https%3A%2F%2Funtrusted.example%2Fsession";
+  const result = QRSecurityChecker.evaluateSecurity(testUrl);
+  const { parsed, riskResult, securityChecks } = result;
+
+  // Domain & Public Suffix List Verification
+  assert.equal(parsed.domainInfo.rawHostname, "paypal.com.login.example", "Hostname must be parsed accurately");
+  assert.equal(parsed.domainInfo.registrableDomain, "login.example", "PSL registrable domain must be login.example, NEVER paypal.com");
+  assert.notEqual(parsed.domainInfo.registrableDomain, "paypal.com", "Must NEVER treat paypal.com.login.example as paypal.com");
+  assert.equal(parsed.domainInfo.subdomain, "paypal.com", "Subdomain must contain paypal.com mimicry");
+
+  // Dimension 1: Brand Masquerading (25/25)
+  assert.equal(securityChecks.hasBrandMismatch, true, "hasBrandMismatch must be true");
+  assert.equal(parsed.brandAudit.isImpersonating, true, "isImpersonating must be true");
+  assert.equal(parsed.brandAudit.impersonationStrength, "STRONG", "impersonationStrength must be STRONG for full legitimate domain in subdomain");
+  assert.equal(parsed.brandAudit.impersonationPattern, "FULL_DOMAIN_IN_SUBDOMAIN", "impersonationPattern must be FULL_DOMAIN_IN_SUBDOMAIN");
+  assert.equal(riskResult.scoreBreakdown.brandImpersonationScore, 25, "Brand masquerading must award full 25 points");
+
+  // Dimension 3: Redirect Integrity (8/20) - External untrusted destination
+  assert.equal(securityChecks.redirect_parameter_present, true, "redirect_parameter_present must be true");
+  assert.equal(securityChecks.redirect_destination_untrusted, true, "redirect_destination_untrusted must be true for cross-origin destination");
+  assert.equal(securityChecks.redirect_chain_observed, false, "redirect_chain_observed must be false in static analysis");
+  assert.equal(securityChecks.redirect_chain_verified, false, "redirect_chain_verified must be false without HTTP verification");
+  assert.equal(securityChecks.networkRedirectStatus, "NOT_TESTED", "Static analysis must preserve networkRedirectStatus as NOT_TESTED");
+  assert.equal(riskResult.scoreBreakdown.redirectRiskScore, 8, "Redirect risk score must be 8 for untrusted external target");
+
+  // Dimension 4: URL Structure (6/15) - Deceptive TLD nesting in subdomain
+  assert.equal(riskResult.scoreBreakdown.urlStructureScore, 6, "URL structure must flag deceptive TLD nesting in subdomain");
+
+  // Dimension 6: Contextual Lures (2/5) - /verify path lure
+  assert.equal(riskResult.scoreBreakdown.contextualLureScore, 2, "Contextual lure score must be 2 for /verify");
+
+  // Total Score & Classification
+  assert.equal(riskResult.riskScore, 41, "Risk score must be 41 (25 + 8 + 6 + 2)");
+  assert.equal(riskResult.authenticityScore, 59, "Authenticity score must be exactly 100 - riskScore (59)");
+  assert.equal(riskResult.threatLevel, "SUSPICIOUS", "Classification must be SUSPICIOUS, never LOW RISK");
+  assert.equal(riskResult.threatType, "BRAND_IMPERSONATION", "Primary threat type must be BRAND_IMPERSONATION");
+  assert.equal(riskResult.confidenceType, "HEURISTIC_ESTIMATE");
+});
+
+// ─────────────────────────────────────────────────────────────
+// Test 13: Benign Brand Mentions in Paths (Non-Phishing Editorial/API Paths)
+// ─────────────────────────────────────────────────────────────
+await runTest("13. Benign Brand Mentions in Paths (Editorial / API Documentation)", () => {
+  const editorialResult = QRSecurityChecker.evaluateSecurity("https://techblog.example/news/paypal");
+  assert.equal(editorialResult.parsed.brandAudit.isImpersonating, false, "Editorial mention must not be flagged as impersonation");
+  assert.equal(editorialResult.riskResult.scoreBreakdown.brandImpersonationScore, 0, "Editorial mention brand score must be 0");
+  assert.equal(editorialResult.riskResult.threatLevel, "SAFE", "Editorial mention must be classified as SAFE");
+
+  const docsResult = QRSecurityChecker.evaluateSecurity("https://docs.example/api/v1/paypal/checkout");
+  assert.equal(docsResult.parsed.brandAudit.isImpersonating, false, "API path mention must not be flagged as impersonation");
+  assert.equal(docsResult.riskResult.scoreBreakdown.brandImpersonationScore, 0, "API path brand score must be 0");
+  assert.equal(docsResult.riskResult.threatLevel, "SAFE", "API path must be classified as SAFE");
+});
+
+// ─────────────────────────────────────────────────────────────
+// Test 14: Strong Brand Impersonation Threat Classification Floor
+// ─────────────────────────────────────────────────────────────
+await runTest("14. Strong Brand Impersonation Threat Classification Floor", () => {
+  // Bare domain spoof with no redirect parameters or credential path lures
+  const bareSpoof = QRSecurityChecker.evaluateSecurity("https://paypal.com.login.example/");
+  
+  assert.equal(bareSpoof.parsed.brandAudit.impersonationStrength, "STRONG");
+  // Raw score is 25 (Brand) + 6 (Deceptive TLD) = 31.
+  // Principled policy raises riskScore floor to RISK_THRESHOLDS.SUSPICIOUS.min (40)
+  assert.ok(
+    bareSpoof.riskResult.riskScore >= RISK_THRESHOLDS.SUSPICIOUS.min,
+    `Strong brand impersonation must have risk score >= ${RISK_THRESHOLDS.SUSPICIOUS.min}, got ${bareSpoof.riskResult.riskScore}`
+  );
+  assert.equal(bareSpoof.riskResult.threatLevel, "SUSPICIOUS", "Strong brand impersonation must never be LOW or SAFE");
+  assert.equal(
+    bareSpoof.riskResult.authenticityScore,
+    100 - bareSpoof.riskResult.riskScore,
+    "Authenticity score must strictly equal 100 - riskScore"
+  );
+});
+
+// ─────────────────────────────────────────────────────────────
+// Test 15: Benign Encoded Redirects vs Untrusted External Redirects
+// ─────────────────────────────────────────────────────────────
+await runTest("15. Benign Encoded Redirects vs Untrusted External Redirects", () => {
+  const benignSameOrigin = QRSecurityChecker.evaluateSecurity("https://example.com/login?redirect=https%3A%2F%2Fexample.com%2Fdashboard");
+  assert.equal(benignSameOrigin.securityChecks.redirect_destination_untrusted, false);
+  assert.equal(benignSameOrigin.riskResult.scoreBreakdown.redirectRiskScore, 0);
+
+  const crossOriginUntrusted = QRSecurityChecker.evaluateSecurity("https://example.com/oauth?redirect=https%3A%2F%2Funtrusted.example%2Fcallback");
+  assert.equal(crossOriginUntrusted.securityChecks.redirect_destination_untrusted, true);
+  assert.equal(crossOriginUntrusted.riskResult.scoreBreakdown.redirectRiskScore, 8);
 });
 
   console.log("\n======================================================================");

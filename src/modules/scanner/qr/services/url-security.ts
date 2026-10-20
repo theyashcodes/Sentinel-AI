@@ -158,6 +158,8 @@ export interface BrandImpersonationAudit {
   isImpersonating: boolean;
   targetBrand?: string;
   brandLocation?: "subdomain" | "path" | "userinfo" | "query";
+  impersonationStrength?: "STRONG" | "MODERATE" | "NONE";
+  impersonationPattern?: "FULL_DOMAIN_IN_SUBDOMAIN" | "KEYWORD_SUBDOMAIN" | "USERINFO_INJECTION" | "CREDENTIAL_PATH_LURE" | "NONE";
   registrableDomain: string;
   legitimateDomains: string[];
 }
@@ -406,36 +408,65 @@ export class URLSecurityAnalyzer {
       // If this is the legitimate domain, it is NOT brand impersonation
       if (isLegitDomain) continue;
 
+      // 1. Check Subdomain for Full Domain Mimicry (e.g. paypal.com.login.example)
+      for (const legit of entry.legitimateDomains) {
+        const escaped = legit.replace(/\./g, "\\.");
+        const fullDomainPattern = new RegExp(`(^|\\.)${escaped}(\\.|$)`, "i");
+        if (fullDomainPattern.test(lowerSub)) {
+          return {
+            isImpersonating: true,
+            targetBrand: entry.brand,
+            brandLocation: "subdomain",
+            impersonationStrength: "STRONG",
+            impersonationPattern: "FULL_DOMAIN_IN_SUBDOMAIN",
+            registrableDomain,
+            legitimateDomains: entry.legitimateDomains,
+          };
+        }
+      }
+
       for (const kw of entry.keywords) {
-        // 1. Check Subdomain (e.g. paypal.com.attacker.com or paypal-security.attacker.com)
+        // 2. Check Subdomain for Brand Keywords (e.g. paypal-security.attacker.com)
         const subPattern = new RegExp(`(^|\\.|-)${kw}(\\.|-|$)`, "i");
         if (subPattern.test(lowerSub)) {
           return {
             isImpersonating: true,
             targetBrand: entry.brand,
             brandLocation: "subdomain",
+            impersonationStrength: "STRONG",
+            impersonationPattern: "KEYWORD_SUBDOMAIN",
             registrableDomain,
             legitimateDomains: entry.legitimateDomains,
           };
         }
 
-        // 2. Check User-info (e.g. https://paypal.com@evil.com/)
+        // 3. Check User-info (e.g. https://paypal.com@evil.com/)
         if (lowerUser.includes(kw)) {
           return {
             isImpersonating: true,
             targetBrand: entry.brand,
             brandLocation: "userinfo",
+            impersonationStrength: "STRONG",
+            impersonationPattern: "USERINFO_INJECTION",
             registrableDomain,
             legitimateDomains: entry.legitimateDomains,
           };
         }
 
-        // 3. Check Path combined with deceptive login/verify lures (e.g. evil.com/paypal/login)
-        if (lowerPath.includes(`/${kw}/`) || lowerPath.includes(`/${kw}-login`) || lowerPath.endsWith(`/${kw}`)) {
+        // 4. Check Path: Distinguish Phishing Lures from Benign Path Mentions
+        // A foreign domain path is ONLY brand impersonation if it combines the brand name with an authentication / credential lure.
+        // Neutral paths like /news/paypal, /articles/paypal, /docs/paypal are NOT impersonation attacks.
+        const pathAuthLurePattern = new RegExp(
+          `/(login|signin|sign-in|log-in|verify|verification|auth|authenticate|account|wallet|kyc|portal)[/-]${kw}|${kw}[/-](login|signin|sign-in|log-in|verify|verification|auth|authenticate|account|wallet|kyc|portal)|/${kw}/(login|signin|verify|auth|account)`,
+          "i"
+        );
+        if (pathAuthLurePattern.test(lowerPath)) {
           return {
             isImpersonating: true,
             targetBrand: entry.brand,
             brandLocation: "path",
+            impersonationStrength: "MODERATE",
+            impersonationPattern: "CREDENTIAL_PATH_LURE",
             registrableDomain,
             legitimateDomains: entry.legitimateDomains,
           };
@@ -445,6 +476,8 @@ export class URLSecurityAnalyzer {
 
     return {
       isImpersonating: false,
+      impersonationStrength: "NONE",
+      impersonationPattern: "NONE",
       registrableDomain,
       legitimateDomains: [],
     };
@@ -606,9 +639,8 @@ export class URLSecurityAnalyzer {
 
         isExternalDestination = !isSameOrigin && !isSameRegistrableDomain;
 
-        // An external destination is UNTRUSTED only if it is NOT same-origin, NOT same-registrable-domain,
-        // and NOT a reserved synthetic domain (.example, .test, example.com, etc.)
-        redirect_destination_untrusted = isExternalDestination && !isReservedSyntheticDomain;
+        // An external destination is untrusted when it forwards across distinct registrable domains
+        redirect_destination_untrusted = isExternalDestination;
       } catch {
         // Fallback safely
       }

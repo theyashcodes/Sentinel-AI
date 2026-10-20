@@ -69,16 +69,19 @@ export class QRRiskEngine {
     if (parsed.brandAudit.isImpersonating) {
       if (parsed.brandAudit.brandLocation === "subdomain") {
         brandScore = 25;
+        const isFullDomain = parsed.brandAudit.impersonationPattern === "FULL_DOMAIN_IN_SUBDOMAIN";
         evidenceList.push({
           dimension: "Brand Impersonation",
           pointsAwarded: 25,
           maxPoints: 25,
-          title: "Subdomain Brand Spoofing",
-          description: `Hostname masquerades as "${parsed.brandAudit.targetBrand}" inside subdomains, while registered domain is "${parsed.domainInfo.registrableDomain}".`,
+          title: isFullDomain ? "Full Legitimate Domain Mimicry in Subdomain" : "Subdomain Brand Spoofing",
+          description: isFullDomain
+            ? `Hostname embeds full authentic domain in subdomains ("${parsed.domainInfo.subdomain}") while registered domain is "${parsed.domainInfo.registrableDomain}".`
+            : `Hostname masquerades as "${parsed.brandAudit.targetBrand}" inside subdomains, while registered domain is "${parsed.domainInfo.registrableDomain}".`,
           severity: "critical",
         });
         warnings.push({
-          code: "BRAND_MASQUERADE_SUBDOMAIN",
+          code: isFullDomain ? "FULL_DOMAIN_MASQUERADE_SUBDOMAIN" : "BRAND_MASQUERADE_SUBDOMAIN",
           title: `Brand Impersonation (${parsed.brandAudit.targetBrand})`,
           description: `The URL uses "${parsed.brandAudit.targetBrand}" in subdomains to deceive users, but actually points to "${parsed.domainInfo.registrableDomain}".`,
           severity: "high",
@@ -365,7 +368,23 @@ export class QRRiskEngine {
         description: `URL routes directly to an IP address (${parsed.hostname}) rather than a named domain.`,
         severity: "medium",
       });
-      indicators.push(`Numeric IP host (${parsed.hostname}) bypasses DNS reputation`);
+    } else if (parsed.domainInfo.subdomain && parsed.domainInfo.subdomain.split(".").some(lbl => ["com", "net", "org", "gov", "edu", "co", "io", "me", "info", "biz"].includes(lbl.toLowerCase()))) {
+      structureScore = 6;
+      evidenceList.push({
+        dimension: "Structure & SSRF Defense",
+        pointsAwarded: 6,
+        maxPoints: 15,
+        title: "Deceptive Subdomain TLD Mimicry",
+        description: `Hostname embeds deceptive top-level domain labels inside its subdomain ("${parsed.domainInfo.subdomain}") to simulate an authentic destination.`,
+        severity: "medium",
+      });
+      warnings.push({
+        code: "DECEPTIVE_SUBDOMAIN_NESTING",
+        title: "Deceptive Subdomain Structure",
+        description: `Subdomain "${parsed.domainInfo.subdomain}" contains TLD-like domain formatting designed to mislead users.`,
+        severity: "medium",
+      });
+      indicators.push(`Deceptive TLD-in-subdomain structure (${parsed.domainInfo.subdomain})`);
     } else if (parsed.port && parsed.port !== "80" && parsed.port !== "443") {
       structureScore = 5;
       evidenceList.push({
@@ -505,10 +524,9 @@ export class QRRiskEngine {
 
     // Clamp between 0 and 100
     totalRiskScore = Math.min(100, Math.max(0, Math.round(totalRiskScore)));
-    const authenticityScore = 100 - totalRiskScore;
 
     // ─────────────────────────────────────────────────────────────
-    // THREAT CLASSIFICATION
+    // THREAT CLASSIFICATION & PRINCIPLED RISK POLICY
     // ─────────────────────────────────────────────────────────────
     let threatLevel: ThreatClassification = "SAFE";
     if (totalRiskScore >= RISK_THRESHOLDS.CRITICAL.min) {
@@ -522,6 +540,24 @@ export class QRRiskEngine {
     } else {
       threatLevel = "SAFE";
     }
+
+    // PRINCIPLED SECURITY POLICY FOR STRONG BRAND IMPERSONATION:
+    // A verified brand impersonation attack (e.g. masquerading as a financial/tech brand
+    // in subdomains or authority on an unauthorized third-party registrable domain) represents an
+    // active phishing lure. It must NEVER be classified as SAFE or LOW RISK.
+    // Confirmed strong brand impersonation enforces a non-negotiable classification floor of SUSPICIOUS.
+    if (parsed.brandAudit.isImpersonating && (parsed.brandAudit.brandLocation === "subdomain" || parsed.brandAudit.brandLocation === "userinfo")) {
+      if (threatLevel === "SAFE" || threatLevel === "LOW") {
+        threatLevel = "SUSPICIOUS";
+      }
+      // Maintain mathematical and semantic consistency between riskScore, authenticityScore, and classification
+      if (totalRiskScore < RISK_THRESHOLDS.SUSPICIOUS.min) {
+        totalRiskScore = RISK_THRESHOLDS.SUSPICIOUS.min;
+      }
+    }
+
+    // Authenticity Score is mathematically defined as (100 - totalRiskScore)
+    const authenticityScore = 100 - totalRiskScore;
 
     // Threat Type Classification
     let threatType = "SAFE";
@@ -546,6 +582,8 @@ export class QRRiskEngine {
         .filter((e) => e.pointsAwarded > 0)
         .sort((a, b) => b.pointsAwarded - a.pointsAwarded)[0];
       reasoning = `High-probability threat detected (${totalRiskScore}/100 Risk Score). Primary driver: ${topEvidence ? topEvidence.title : "Deceptive URL features"}. Not safe for end-user interaction.`;
+    } else if (parsed.brandAudit.isImpersonating && (parsed.brandAudit.brandLocation === "subdomain" || parsed.brandAudit.brandLocation === "userinfo")) {
+      reasoning = `Brand impersonation threat detected (${totalRiskScore}/100 Risk Score). Hostname deceptively masquerades as "${parsed.brandAudit.targetBrand}" on unauthorized host "${parsed.domainInfo.registrableDomain}". Potential phishing vector.`;
     } else if (threatLevel === "SUSPICIOUS") {
       reasoning = `Elevated risk signals detected (${totalRiskScore}/100 Risk Score). The URL uses ambiguous masking, unencrypted protocols, or redirect parameters. Proceed with caution.`;
     } else if (threatLevel === "LOW") {
