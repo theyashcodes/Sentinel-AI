@@ -58,12 +58,12 @@ export function ExtensionManagementView() {
             }}
           >
             <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "var(--ok)", display: "inline-block" }}></span>
-            API ENGINE ONLINE (PORT 3000)
+            24/7 CLOUD & LOCAL ENGINE READY
           </span>
         </div>
 
         <p style={{ fontSize: "14px", color: "var(--muted)", margin: 0, lineHeight: 1.6, fontWeight: 400 }}>
-          Bring Sentinel AI’s neural threat engine directly into your daily web browsing. As you surf the web, the extension monitors active tabs in the background, unmasks Cyrillic homoglyphs in real time, changes icon badge colors (Safe / Warn / Danger), and fires desktop notifications if you land on a phishing clone.
+          Bring Sentinel AI’s neural threat engine directly into your daily web browsing. As you surf the web, the extension monitors active tabs in the background, unmasks Cyrillic homoglyphs in real time, plays an <strong>automatic high-frequency emergency siren alarm</strong> on 90+ threat phishing targets, and fires desktop notifications. Works anywhere on any computer with 24/7 Cloud API connectivity!
         </p>
 
         {/* ── Universal Quick Download Button Banner ── */}
@@ -83,10 +83,10 @@ export function ExtensionManagementView() {
           <div>
             <div style={{ fontSize: "14px", fontWeight: 700, color: "var(--ink)", display: "flex", alignItems: "center", gap: "0.5rem" }}>
               <FolderArchive style={{ width: "16px", height: "16px", color: "var(--accent)" }} />
-              Works on Any Device (Windows, Mac, Linux)
+              Works on Any Laptop (No Server Setup Required)
             </div>
             <p style={{ margin: "4px 0 0 0", fontSize: "12px", color: "var(--muted)" }}>
-              Download the ready-to-install ZIP package. Unzip it anywhere on your computer and load it directly into Chrome.
+              Download the 1-click ready-to-use ZIP. Includes the emergency alarm sound and auto-connects to 24/7 Sentinel AI Cloud.
             </p>
           </div>
 
@@ -97,15 +97,16 @@ export function ExtensionManagementView() {
             style={{
               display: "inline-flex",
               alignItems: "center",
-              gap: "6px",
+              gap: "8px",
               textDecoration: "none",
-              height: "40px",
-              padding: "0 1.25rem",
-              fontWeight: 600,
+              height: "42px",
+              padding: "0 1.35rem",
+              fontWeight: 700,
               fontSize: "13px",
+              boxShadow: "0 4px 14px rgba(59,130,246,0.25)",
             }}
           >
-            <Download style={{ width: "15px", height: "15px" }} />
+            <Download style={{ width: "16px", height: "16px" }} />
             Download Extension (.zip)
           </a>
         </div>
