@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Search, QrCode, GitFork, Fingerprint, Mic, Mail, Shield, History, ArrowRight } from "lucide-react";
+import { Search, QrCode, GitFork, Fingerprint, Mic, Mail, Shield, History, ArrowRight, MessageSquareWarning } from "lucide-react";
 
 const operations = [
   {
@@ -45,6 +45,13 @@ const operations = [
     description: "Analyze .eml headers to unmask spoofed senders, failed SPF/DKIM, and relay hops.",
     href: "/dashboard/email-audit",
     icon: Mail,
+  },
+  {
+    id: "smishing-protocol",
+    title: "Smishing & Phone Forensics",
+    description: "Audit SMS/WhatsApp fear urgency, rogue APKs, and reverse phone number carrier intelligence.",
+    href: "/dashboard/scanner/smishing",
+    icon: MessageSquareWarning,
   },
   {
     id: "extension-protocol",

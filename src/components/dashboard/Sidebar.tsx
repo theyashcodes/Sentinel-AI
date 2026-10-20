@@ -21,6 +21,7 @@ import {
   Sliders,
   ChevronUp,
   Mic,
+  MessageSquareWarning,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { authClient } from "@/lib/auth-client";
@@ -34,6 +35,7 @@ const coreNav = [
   { id: "nav-forensics", name: "AI Media Forensics", href: "/dashboard/forensics",   icon: Fingerprint },
   { id: "nav-voice",     name: "AI Voice Detector",  href: "/dashboard/voice-forensics", icon: Mic },
   { id: "nav-email",     name: "Email Dissector",    href: "/dashboard/email-audit", icon: Mail },
+  { id: "nav-smishing",  name: "Smishing & SMS",     href: "/dashboard/scanner/smishing", icon: MessageSquareWarning },
   { id: "nav-extension", name: "Browser Shield",     href: "/dashboard/extension",   icon: Shield },
   { id: "nav-history",   name: "Scan History",       href: "/dashboard/history",     icon: History },
 ];
