@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { detectImpersonation } from "@/lib/scanner/tracer";
+import { CategoryAnalyzer } from "@/lib/scanner/category-analyzer";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +56,9 @@ export async function POST(req: NextRequest) {
           isInternal: true,
           threats: [],
           impersonation: { detected: false },
+          category: "INTERNAL",
+          categoryLabel: "Internal Browser Tab",
+          categoryIcon: "🛡️",
           scannedAt: new Date().toISOString(),
         },
         { headers: corsHeaders() }
@@ -73,38 +77,65 @@ export async function POST(req: NextRequest) {
 
     const hostname = parsedUrl.hostname.toLowerCase();
     const pathname = parsedUrl.pathname.toLowerCase();
+    const fullUrl = parsedUrl.toString();
     const threats: string[] = [];
     let riskScore = 5; // Clean baseline
 
-    // 1. Homoglyph / Impersonation Analysis
+    // 1. Check Shady Categories & Groq AI Verification (Gambling, Adult, Piracy, Crypto Scams, Whitelist)
+    const categoryAudit = await CategoryAnalyzer.analyze(hostname, pathname, fullUrl);
+    if (categoryAudit.isShady) {
+      riskScore = Math.max(riskScore, categoryAudit.riskScore);
+      if (categoryAudit.threatDescription) {
+        threats.push(categoryAudit.threatDescription);
+      }
+    } else if (categoryAudit.detectedBy === "WHITELIST") {
+      // Verified top platform (Google, GitHub, etc.)
+      return NextResponse.json(
+        {
+          url: fullUrl,
+          domain: hostname,
+          riskScore: 0,
+          verdict: "SAFE",
+          impersonation: { detected: false },
+          threats: [],
+          category: categoryAudit.category,
+          categoryLabel: categoryAudit.categoryLabel,
+          categoryIcon: categoryAudit.categoryIcon,
+          scannedAt: new Date().toISOString(),
+        },
+        { headers: corsHeaders() }
+      );
+    }
+
+    // 2. Homoglyph / Impersonation Analysis
     const impersonation = detectImpersonation(hostname);
     if (impersonation.detected) {
       riskScore = Math.max(riskScore, impersonation.riskScore);
       threats.push(impersonation.explanation || `Impersonation spoof of ${impersonation.targetBrand}`);
     }
 
-    // 2. Raw IP Hostname Check
+    // 3. Raw IP Hostname Check
     const isIpHost = /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname);
     if (isIpHost && !hostname.startsWith("127.") && hostname !== "localhost") {
       riskScore = Math.max(riskScore, 75);
       threats.push("Raw IP address used as hostname instead of certified domain (common in C2 and phishing)");
     }
 
-    // 3. High-Risk TLD Check
+    // 4. High-Risk TLD Check
     const matchedTld = SUSPICIOUS_TLDS.find((tld) => hostname.endsWith(tld));
     if (matchedTld) {
       riskScore += 25;
       threats.push(`High-abuse TLD detected (${matchedTld}) often associated with disposable phishing campaigns`);
     }
 
-    // 4. Phishing Keywords in Path
+    // 5. Phishing Keywords in Path
     const matchedKeywords = PHISHING_PATH_KEYWORDS.filter((kw) => pathname.includes(kw));
     if (matchedKeywords.length >= 2) {
       riskScore += 20;
       threats.push(`Suspicious credential harvest path keywords detected (${matchedKeywords.join(", ")})`);
     }
 
-    // 5. Insecure HTTP Check
+    // 6. Insecure HTTP Check
     if (parsedUrl.protocol === "http:" && !hostname.includes("localhost") && !hostname.includes("127.0.0.1")) {
       riskScore += 15;
       threats.push("Insecure unencrypted HTTP protocol in use");
@@ -115,20 +146,24 @@ export async function POST(req: NextRequest) {
 
     // Determine Verdict
     let verdict: "SAFE" | "SUSPICIOUS" | "MALICIOUS" = "SAFE";
-    if (riskScore >= 70) {
+    if (riskScore >= 75) {
       verdict = "MALICIOUS";
-    } else if (riskScore >= 35) {
+    } else if (riskScore >= 40) {
       verdict = "SUSPICIOUS";
     }
 
     return NextResponse.json(
       {
-        url: parsedUrl.toString(),
+        url: fullUrl,
         domain: hostname,
         riskScore,
         verdict,
         impersonation,
         threats,
+        category: categoryAudit.category,
+        categoryLabel: categoryAudit.categoryLabel,
+        categoryIcon: categoryAudit.categoryIcon,
+        detectedBy: categoryAudit.detectedBy,
         scannedAt: new Date().toISOString(),
       },
       { headers: corsHeaders() }

@@ -158,6 +158,16 @@ function renderResult(container, data, fullUrl, baseUrl) {
     `;
   }
 
+  let categoryBadge = "";
+  if (data.category && data.category !== "CLEAN" && data.category !== "INTERNAL" && data.categoryLabel) {
+    categoryBadge = `
+      <div style="display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: ${statusColor}; background: ${statusBg}; border: 1px solid ${statusBorder}; padding: 3px 8px; margin-top: 8px;">
+        <span>${data.categoryIcon || "⚠️"}</span>
+        <span>${data.categoryLabel}</span>
+      </div>
+    `;
+  }
+
   let threatItems = "";
   if (data.threats && data.threats.length > 0) {
     threatItems = `
@@ -176,6 +186,7 @@ function renderResult(container, data, fullUrl, baseUrl) {
     <div class="card">
       <div class="domain-title">${data.domain}</div>
       <div class="target-url">${fullUrl.length > 60 ? fullUrl.substring(0, 60) + "..." : fullUrl}</div>
+      ${categoryBadge}
 
       <div class="score-row">
         <div>
