@@ -188,9 +188,11 @@ export async function POST(req: NextRequest) {
     // ─────────────────────────────────────────────────────────────
     // 7. Return Explainable Structured Response
     // ─────────────────────────────────────────────────────────────
+    let cleanReasoning = riskResult.reasoning.replace(/\(\d+\/100 Risk Score\)/g, `(${finalRiskScore}/100 Risk Score)`);
+
     const reasoningText = (mlVerdict && mlVerdict.threatType !== "SAFE" && mlVerdict.reasoning)
-      ? `${mlVerdict.reasoning} ${riskResult.reasoning !== "Verified Clean: Destination domain matches standard benign patterns with authentic TLS and structure." ? riskResult.reasoning : ""}`.trim()
-      : riskResult.reasoning;
+      ? `${mlVerdict.reasoning} ${cleanReasoning}`.trim()
+      : cleanReasoning;
 
     return NextResponse.json({
       scanId,

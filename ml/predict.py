@@ -1,9 +1,18 @@
 import os
 import sys
+
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 import json
 import joblib
 import numpy as np
-from ml.feature_extractor import extract_features, FEATURE_NAMES
+try:
+    from ml.feature_extractor import extract_features, FEATURE_NAMES
+except ImportError:
+    from feature_extractor import extract_features, FEATURE_NAMES
+
 
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "models", "sentinel_url_model.joblib")
 _model = None

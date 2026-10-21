@@ -540,8 +540,9 @@ export class URLSecurityAnalyzer {
     maxDepth = 3
   ): NestedRedirectInspection {
     const redirectKeys = [
-      "redirect", "redirect_url", "redirect_to", "next", "continue", "return", "return_to",
-      "url", "dest", "destination", "target", "r", "to", "link", "forward", "out", "u", "go", "goto", "returnto"
+      "redirect", "redirect_url", "redirect_to", "redirect_uri", "next", "continue", "return", "return_to", "return_url",
+      "url", "dest", "destination", "target", "r", "to", "link", "forward", "out", "u", "go", "goto", "returnto",
+      "callback", "callback_url", "checkout_url", "checkout", "redirect_link", "redirect_path"
     ];
 
     let currentUrl = urlObj.href;
