@@ -200,7 +200,7 @@ export class CategoryAnalyzer {
     const endpoint = isGroq
       ? "https://api.groq.com/openai/v1/chat/completions"
       : "https://api.x.ai/v1/chat/completions";
-    const model = isGroq ? "llama-3.1-8b-instant" : "grok-2-latest";
+    const model = isGroq ? "qwen/qwen3.8-27b" : "grok-2-latest";
 
     const prompt = `Analyze this domain/URL: "${fullUrl}" (Host: ${hostname}).
 Classify whether it belongs to any high-risk shady category:
