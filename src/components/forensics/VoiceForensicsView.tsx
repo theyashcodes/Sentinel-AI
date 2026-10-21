@@ -185,24 +185,63 @@ export function VoiceForensicsView() {
       const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer.slice(0));
       const rawBytes = new Uint8Array(arrayBuffer);
       const res = await analyzeAudioBuffer(audioBuffer, file.name, rawBytes);
-      setResult(res);
+
+      // Dual-Engine Deep Learning & Neural Prosody Analysis
+      let finalRes = res;
+      try {
+        const deepForm = new FormData();
+        deepForm.append("file", file);
+        deepForm.append("clientMetrics", JSON.stringify({
+          jitterPercent: res.acousticMetrics.jitterPercent,
+          shimmerPercent: res.acousticMetrics.shimmerPercent,
+          spectralCutoffKHz: res.acousticMetrics.spectralCutoffKHz,
+          aiProbabilityScore: res.aiProbabilityScore,
+          matchedArchitecture: res.matchedArchitecture,
+          isAcousticReplay: res.matchedArchitecture.includes("Loudspeaker") || res.acousticMetrics.phaseDispersionIndex > 0.5,
+          indicators: res.indicators,
+        }));
+
+        const deepRes = await fetch("/api/voice-forensics/analyze", {
+          method: "POST",
+          body: deepForm,
+        });
+
+        if (deepRes.ok) {
+          const deepData = await deepRes.json();
+          if (deepData.success) {
+            finalRes = {
+              ...res,
+              aiProbabilityScore: deepData.aiProbabilityScore,
+              verdict: deepData.verdict,
+              riskLevel: deepData.riskLevel,
+              confidenceScore: deepData.confidenceScore,
+              matchedArchitecture: deepData.matchedArchitecture,
+              indicators: deepData.indicators && deepData.indicators.length > 0 ? deepData.indicators : res.indicators,
+            };
+          }
+        }
+      } catch (deepErr) {
+        console.warn("Deep learning voice analysis fallback to local bio-acoustics:", deepErr);
+      }
+
+      setResult(finalRes);
 
       // Notify CyBro
       notifyCyBroScanComplete({
         tool: "voice",
         target: file.name,
-        isThreat: res.riskLevel === "malicious" || res.riskLevel === "suspicious",
-        threatLevel: res.riskLevel,
-        summary: `AI Probability: ${res.aiProbabilityScore}%. Verdict: ${res.verdict}. Model: ${res.matchedArchitecture}.`,
+        isThreat: finalRes.riskLevel === "malicious" || finalRes.riskLevel === "suspicious",
+        threatLevel: finalRes.riskLevel,
+        summary: `AI Probability: ${finalRes.aiProbabilityScore}%. Verdict: ${finalRes.verdict}. Model: ${finalRes.matchedArchitecture}.`,
         findings: [
-          `AI Probability: ${res.aiProbabilityScore}%`,
-          `Pitch Jitter: ${res.acousticMetrics.jitterPercent}%`,
-          `Spectral Cutoff: ${res.acousticMetrics.spectralCutoffKHz} kHz`,
-          res.acousticMetrics.aiTagDetected
-            ? `Marker: ${res.acousticMetrics.aiTagDetected}`
-            : `Noise Floor: ${res.acousticMetrics.digitalSilenceDetected ? "Digital Zero Pauses" : "Analog Mic"}`,
+          `AI Probability: ${finalRes.aiProbabilityScore}%`,
+          `Pitch Jitter: ${finalRes.acousticMetrics.jitterPercent}%`,
+          `Spectral Cutoff: ${finalRes.acousticMetrics.spectralCutoffKHz} kHz`,
+          finalRes.acousticMetrics.aiTagDetected
+            ? `Marker: ${finalRes.acousticMetrics.aiTagDetected}`
+            : `Noise Floor: ${finalRes.acousticMetrics.digitalSilenceDetected ? "Digital Zero Pauses" : "Analog Mic"}`,
         ],
-        rawResult: res,
+        rawResult: finalRes,
       });
 
       // Persist scan to database for audit history
