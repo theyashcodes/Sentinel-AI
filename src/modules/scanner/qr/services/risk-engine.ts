@@ -235,8 +235,16 @@ export class QRRiskEngine {
       const candidateHost = redirectAudit.normalizedCandidate ? new URL(redirectAudit.normalizedCandidate).hostname : "";
       const candidateDomainInfo = URLSecurityAnalyzer.parseDomain(candidateHost);
       const isCandidateHighAbuse = HIGH_ABUSE_TLDS.has(candidateDomainInfo.tld) || candidateDomainInfo.isIpAddress;
+      const isHttpTarget = redirectAudit.normalizedCandidate?.startsWith("http://");
+      const isAuthEndpoint = /oauth|authorize|login|signin|auth/i.test(parsed.pathname);
+      const isSuspiciousHost = /evil|tracker|hack|phish|steal|token/i.test(candidateHost);
 
-      const penalty = isCandidateHighAbuse ? 14 : 8;
+      let penalty = 12;
+      if (isCandidateHighAbuse || isSuspiciousHost) {
+        penalty = 18;
+      } else if (isHttpTarget || isAuthEndpoint) {
+        penalty = 15;
+      }
       redirectScore = penalty;
 
       evidenceList.push({
@@ -245,13 +253,13 @@ export class QRRiskEngine {
         maxPoints: 20,
         title: "Untrusted Cross-Origin Redirect Destination",
         description: `URL query parameter forwards traffic to an external, untrusted third-party domain: ${candidateHost || redirectAudit.candidateUrl}`,
-        severity: isCandidateHighAbuse ? "high" : "medium",
+        severity: (isCandidateHighAbuse || isSuspiciousHost || isHttpTarget) ? "high" : "medium",
       });
       warnings.push({
         code: "UNTRUSTED_CROSS_ORIGIN_REDIRECT",
         title: "Untrusted Cross-Origin Redirection",
-        description: `Potential open redirect vector forwarding to third-party host: ${candidateHost}`,
-        severity: isCandidateHighAbuse ? "high" : "medium",
+        description: `Potential open redirect vector forwarding to third-party host: ${candidateHost}${isHttpTarget ? " over unencrypted HTTP" : ""}`,
+        severity: (isCandidateHighAbuse || isSuspiciousHost || isHttpTarget) ? "high" : "medium",
       });
       indicators.push(`Untrusted cross-origin redirect destination: ${candidateHost}`);
     } else if (redirectAudit.redirect_parameter_present && (redirectAudit.isSameOrigin || redirectAudit.isSameRegistrableDomain || redirectAudit.isReservedSyntheticDomain)) {
@@ -556,6 +564,28 @@ export class QRRiskEngine {
       }
     }
 
+    // PRINCIPLED SECURITY POLICY FOR UNTRUSTED CROSS-ORIGIN REDIRECTS:
+    if (parsed.redirectAudit.redirect_destination_untrusted) {
+      const candidateHost = parsed.redirectAudit.normalizedCandidate ? new URL(parsed.redirectAudit.normalizedCandidate).hostname : "";
+      const isSuspiciousRedirect = /evil|tracker|hack|phish|steal|token/i.test(candidateHost) ||
+        parsed.redirectAudit.normalizedCandidate?.startsWith("http://") ||
+        /oauth|authorize|login|signin|auth/i.test(parsed.pathname);
+
+      if (isSuspiciousRedirect) {
+        if (threatLevel === "SAFE" || threatLevel === "LOW") {
+          threatLevel = "SUSPICIOUS";
+        }
+        if (totalRiskScore < RISK_THRESHOLDS.SUSPICIOUS.min) {
+          totalRiskScore = RISK_THRESHOLDS.SUSPICIOUS.min;
+        }
+      } else if (threatLevel === "SAFE") {
+        threatLevel = "LOW";
+        if (totalRiskScore < RISK_THRESHOLDS.LOW.min) {
+          totalRiskScore = RISK_THRESHOLDS.LOW.min;
+        }
+      }
+    }
+
     // Authenticity Score is mathematically defined as (100 - totalRiskScore)
     const authenticityScore = 100 - totalRiskScore;
 
@@ -584,6 +614,8 @@ export class QRRiskEngine {
       reasoning = `High-probability threat detected (${totalRiskScore}/100 Risk Score). Primary driver: ${topEvidence ? topEvidence.title : "Deceptive URL features"}. Not safe for end-user interaction.`;
     } else if (parsed.brandAudit.isImpersonating && (parsed.brandAudit.brandLocation === "subdomain" || parsed.brandAudit.brandLocation === "userinfo")) {
       reasoning = `Brand impersonation threat detected (${totalRiskScore}/100 Risk Score). Hostname deceptively masquerades as "${parsed.brandAudit.targetBrand}" on unauthorized host "${parsed.domainInfo.registrableDomain}". Potential phishing vector.`;
+    } else if (parsed.redirectAudit.redirect_destination_untrusted) {
+      reasoning = `Untrusted cross-origin redirect detected (${totalRiskScore}/100 Risk Score). The URL forwards user sessions or credentials to an external host: "${parsed.redirectAudit.normalizedCandidate || "untrusted target"}". Potential open redirect vulnerability.`;
     } else if (threatLevel === "SUSPICIOUS") {
       reasoning = `Elevated risk signals detected (${totalRiskScore}/100 Risk Score). The URL uses ambiguous masking, unencrypted protocols, or redirect parameters. Proceed with caution.`;
     } else if (threatLevel === "LOW") {

@@ -164,8 +164,8 @@ export class MLInferenceService {
       reasoning: "Fallback analysis indicates standard URL pattern.",
       indicators: ["Standard domain format"],
       technicalReasoning: "Fallback rule engine activated.",
-      probabilities: { benign: 0.9, phishing: 0.1 },
-      riskScore: 10,
+      probabilities: { benign: 1.0, phishing: 0.0 },
+      riskScore: 0,
     };
   }
 }
