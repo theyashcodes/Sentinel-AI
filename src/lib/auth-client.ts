@@ -3,7 +3,7 @@ import { emailOTPClient, twoFactorClient } from "better-auth/client/plugins";
 
 const getBaseURL = () => {
     if (typeof window !== "undefined") {
-        return process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+        return window.location.origin;
     }
     return (
         process.env.NEXT_PUBLIC_APP_URL ||
