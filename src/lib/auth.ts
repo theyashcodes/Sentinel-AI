@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { emailOTP, twoFactor } from "better-auth/plugins";
 import { db } from "@/lib/db";
+import { send2FAEmail } from "@/lib/email";
 
 const getBaseURL = () => {
     if (process.env.BETTER_AUTH_URL && !process.env.BETTER_AUTH_URL.includes("localhost")) {
@@ -43,19 +44,12 @@ export const auth = betterAuth({
     },
     plugins: [
         emailOTP({
-            async sendVerificationOTP({ email, otp, type }) {
-                if (process.env.NODE_ENV === "production") {
-                    throw new Error("Email delivery is not configured for this environment.");
-                }
-
-                // Local development only: avoid sending a real email while making
-                // the one-time password available to the developer.
-                console.log(`\n\n========================================`);
-                console.log(`🔒 EMAIL OTP MOCK`);
-                console.log(`To: ${email}`);
-                console.log(`Type: ${type}`);
-                console.log(`OTP Code: ${otp}`);
-                console.log(`========================================\n\n`);
+            async sendVerificationOTP({ email, otp }) {
+                await send2FAEmail({
+                    to: email,
+                    userName: "Operator",
+                    otp,
+                });
             },
         }),
         twoFactor({
@@ -63,12 +57,11 @@ export const auth = betterAuth({
             skipVerificationOnEnable: true,
             otpOptions: {
                 async sendOTP({ user, otp }) {
-                    console.log(`\n\n========================================`);
-                    console.log(`🔒 SENTINEL 2FA EMAIL OTP`);
-                    console.log(`User: ${user.name} <${user.email}>`);
-                    console.log(`2FA Security Code: ${otp}`);
-                    console.log(`Valid for: 3 minutes`);
-                    console.log(`========================================\n\n`);
+                    await send2FAEmail({
+                        to: user.email,
+                        userName: user.name || "Operator",
+                        otp,
+                    });
                 },
             },
         }),
