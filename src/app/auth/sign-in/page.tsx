@@ -130,7 +130,11 @@ export default function SignInPage() {
     if (!otp || !password) { setError("Fill in both the OTP and new password."); return; }
     setLoading(true); setError(null); setSuccess(null);
     try {
-      const { error: err } = await authClient.resetPassword({ newPassword: password, token: otp.trim() });
+      const { error: err } = await authClient.emailOtp.resetPassword({
+        email: email.trim(),
+        otp: otp.trim(),
+        password,
+      });
       if (err) { setError(errMsg(err)); return; }
 
       setSuccess("Password reset successfully! Logging you in...");
