@@ -1,3 +1,4 @@
+// Sentinel AI Email Security Engine (Gmail SMTP + Nodemailer)
 import nodemailer from "nodemailer";
 
 const gmailUser = process.env.GMAIL_USER;
