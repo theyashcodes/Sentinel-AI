@@ -44,11 +44,12 @@ export const auth = betterAuth({
     },
     plugins: [
         emailOTP({
-            async sendVerificationOTP({ email, otp }) {
+            async sendVerificationOTP({ email, otp, type }) {
                 await send2FAEmail({
                     to: email,
                     userName: "Operator",
                     otp,
+                    type: type === "forget-password" ? "forget-password" : "2fa",
                 });
             },
         }),

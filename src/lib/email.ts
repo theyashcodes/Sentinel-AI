@@ -7,11 +7,21 @@ interface Send2FAEmailParams {
     to: string;
     userName: string;
     otp: string;
+    type?: "2fa" | "forget-password";
 }
 
-export async function send2FAEmail({ to, userName, otp }: Send2FAEmailParams) {
+export async function send2FAEmail({ to, userName, otp, type = "2fa" }: Send2FAEmailParams) {
+    const isReset = type === "forget-password";
+    const subject = isReset
+        ? `🔑 Reset your Sentinel-AI Password (Code: ${otp})`
+        : `🔒 ${otp} is your Sentinel-AI verification code`;
+    const heading = isReset ? "Password Reset Authorization" : "Two-Factor Security Verification";
+    const description = isReset
+        ? `A request was received to reset the password for your account. Use the 6-digit authorization code below along with your new password to restore access:`
+        : `A sign-in attempt was detected for your account. Use the one-time verification code below to authorize access:`;
+
     console.log(`\n========================================`);
-    console.log(`🔒 SENTINEL 2FA DISPATCH`);
+    console.log(`🔒 SENTINEL EMAIL DISPATCH [${type.toUpperCase()}]`);
     console.log(`To: ${userName} <${to}>`);
     console.log(`Code: ${otp}`);
     console.log(`Timestamp: ${new Date().toISOString()}`);
@@ -28,14 +38,14 @@ export async function send2FAEmail({ to, userName, otp }: Send2FAEmailParams) {
         const { data, error } = await resend.emails.send({
             from: fromEmail,
             to: [to],
-            subject: `🔒 ${otp} is your Sentinel-AI verification code`,
+            subject,
             html: `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sentinel AI 2FA Code</title>
+  <title>${heading}</title>
 </head>
 <body style="margin: 0; padding: 0; background-color: #050505; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #E5E7EB;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #050505; padding: 40px 15px;">
@@ -58,10 +68,10 @@ export async function send2FAEmail({ to, userName, otp }: Send2FAEmailParams) {
           <tr>
             <td style="padding: 30px 35px;">
               <h2 style="font-size: 16px; font-weight: 600; color: #FFFFFF; margin: 0 0 10px 0;">
-                Two-Factor Security Verification
+                ${heading}
               </h2>
               <p style="font-size: 13px; color: #9CA3AF; line-height: 1.6; margin: 0 0 25px 0;">
-                Hello <strong style="color: #FFFFFF;">${userName || "Operator"}</strong>, a sign-in or authorization attempt was detected for your account. Use the one-time verification code below to authorize access:
+                Hello <strong style="color: #FFFFFF;">${userName || "Operator"}</strong>, ${description}
               </p>
 
               <!-- OTP Code Box -->

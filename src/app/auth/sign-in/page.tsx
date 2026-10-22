@@ -130,9 +130,25 @@ export default function SignInPage() {
     if (!otp || !password) { setError("Fill in both the OTP and new password."); return; }
     setLoading(true); setError(null); setSuccess(null);
     try {
-      const { error: err } = await authClient.resetPassword({ newPassword: password, token: otp });
+      const { error: err } = await authClient.resetPassword({ newPassword: password, token: otp.trim() });
       if (err) { setError(errMsg(err)); return; }
-      setSuccess("Password reset! You can now sign in.");
+
+      setSuccess("Password reset successfully! Logging you in...");
+
+      // Automatically authenticate the user with their newly set password
+      const loginRes = await signIn.email({ email, password });
+      if (!loginRes.error) {
+        if ((loginRes.data as unknown as { twoFactorRedirect?: boolean })?.twoFactorRedirect) {
+          setMode("two-factor");
+          setSuccess("2FA active on account. Dispatching verification code to your email...");
+          try { await authClient.twoFactor.sendOtp(); } catch {}
+          return;
+        }
+        router.push("/dashboard");
+        return;
+      }
+
+      setSuccess("Password reset! You can now sign in with your new password.");
       setMode("sign-in"); setPassword("");
     } catch { setError("Reset failed. Check your OTP and retry."); }
     finally   { setLoading(false); }
