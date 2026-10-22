@@ -1,11 +1,7 @@
 import nodemailer from "nodemailer";
-import { Resend } from "resend";
 
 const gmailUser = process.env.GMAIL_USER;
 const gmailPass = process.env.GMAIL_APP_PASSWORD;
-
-const resendApiKey = process.env.RESEND_API_KEY;
-const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
 const transporter =
     gmailUser && gmailPass
@@ -110,46 +106,22 @@ export async function send2FAEmail({ to, userName, otp, type = "2fa" }: Send2FAE
 </html>
     `;
 
-    // 1. Try Gmail SMTP first (no domain restriction, works for ANY recipient)
-    if (transporter && gmailUser) {
-        try {
-            const info = await transporter.sendMail({
-                from: `Sentinel AI <${gmailUser}>`,
-                to,
-                subject,
-                html: htmlContent,
-            });
-            console.log("✅ [Gmail SMTP] Email delivered successfully to:", to, "ID:", info.messageId);
-            return { success: true, messageId: info.messageId };
-        } catch (smtpErr) {
-            console.error("❌ [Gmail SMTP] Failed to send email via SMTP:", smtpErr);
-        }
+    if (!transporter || !gmailUser) {
+        console.warn("⚠️ [Gmail SMTP] GMAIL_USER or GMAIL_APP_PASSWORD is not configured. Email logged to console only.");
+        return { success: false, reason: "NO_CONFIG" };
     }
 
-    // 2. Fallback to Resend
-    if (resend) {
-        try {
-            const fromEmail = process.env.EMAIL_FROM || "Sentinel AI <onboarding@resend.dev>";
-            const { data, error } = await resend.emails.send({
-                from: fromEmail,
-                to: [to],
-                subject,
-                html: htmlContent,
-            });
-
-            if (error) {
-                console.error("❌ [Resend] Failed to send email:", error);
-                return { success: false, error };
-            }
-
-            console.log("✅ [Resend] Email delivered successfully. ID:", data?.id);
-            return { success: true, data };
-        } catch (resendErr) {
-            console.error("❌ [Resend] Exception occurred:", resendErr);
-            return { success: false, error: resendErr };
-        }
+    try {
+        const info = await transporter.sendMail({
+            from: `Sentinel AI <${gmailUser}>`,
+            to,
+            subject,
+            html: htmlContent,
+        });
+        console.log("✅ [Gmail SMTP] Email delivered successfully to:", to, "ID:", info.messageId);
+        return { success: true, messageId: info.messageId };
+    } catch (smtpErr) {
+        console.error("❌ [Gmail SMTP] Failed to send email via SMTP:", smtpErr);
+        return { success: false, error: smtpErr };
     }
-
-    console.warn("⚠️ No active mail provider configured. Email logged to console only.");
-    return { success: false, reason: "NO_PROVIDER" };
 }
