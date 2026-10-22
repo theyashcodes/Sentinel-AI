@@ -89,6 +89,7 @@ export function RecentScansAudit({ scans }: RecentScansAuditProps) {
                     <QrCode style={{ width: "13px", height: "13px", color: "var(--accent)", flexShrink: 0 }} />
                   )}
                   <span
+                    className="max-w-[130px] sm:max-w-[260px] md:max-w-[420px] truncate"
                     style={{
                       fontSize: "13px",
                       fontWeight: 400,
@@ -96,7 +97,6 @@ export function RecentScansAudit({ scans }: RecentScansAuditProps) {
                       whiteSpace: "nowrap",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
-                      maxWidth: "420px",
                     }}
                   >
                     {scan.payload || "Diagnostic Target"}

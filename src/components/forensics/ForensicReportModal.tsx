@@ -207,8 +207,8 @@ ${content.disclaimer}
         <div
           ref={printRef}
           id="forensic-dossier-print"
+          className="p-4 sm:p-9"
           style={{
-            padding: "2.25rem",
             overflowY: "auto",
             flex: 1,
             display: "flex",
@@ -221,13 +221,10 @@ ${content.disclaimer}
         >
           {/* Dossier Header Banner */}
           <div
+            className="flex flex-col sm:flex-row justify-between items-start gap-4"
             style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
               borderBottom: "2px solid #0f172a",
               paddingBottom: "1.25rem",
-              gap: "1rem",
             }}
           >
             <div>
@@ -259,12 +256,12 @@ ${content.disclaimer}
 
             {/* Case Reference Box */}
             <div
+              className="w-full sm:w-auto text-left sm:text-right"
               style={{
-                textAlign: "right",
                 border: "1px dashed #cbd5e1",
                 padding: "0.5rem 0.85rem",
                 backgroundColor: "#f8fafc",
-                minWidth: "210px",
+                minWidth: "180px",
               }}
             >
               <div style={{ fontSize: "10px", color: "#64748b", textTransform: "uppercase", fontWeight: 600 }}>

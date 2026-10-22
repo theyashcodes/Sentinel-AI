@@ -169,6 +169,7 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
               key={item.id}
               id={item.id}
               href={item.href}
+              onClick={() => setSidebarOpen(false)}
               style={{ ...navLinkBase, ...(isActive ? navLinkActive : {}) }}
               onMouseEnter={(e) => {
                 if (!isActive) {
@@ -200,6 +201,7 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
               key={item.id}
               id={item.id}
               href={item.href}
+              onClick={() => setSidebarOpen(false)}
               style={{ ...navLinkBase, ...(isActive ? navLinkActive : {}) }}
               onMouseEnter={(e) => {
                 if (!isActive) {

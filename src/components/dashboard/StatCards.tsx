@@ -99,12 +99,9 @@ export function StatCards({
 
   return (
     <div
+      className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-[1px] mb-8"
       style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-        gap: "1px",
         backgroundColor: "var(--grid-gap-color)",
-        marginBottom: "2rem",
       }}
     >
       {cards.map((card) => (

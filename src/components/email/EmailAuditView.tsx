@@ -537,7 +537,7 @@ export function EmailAuditView() {
               )}
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "1rem" }}>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Display Name */}
               <div style={{ padding: "0.85rem", backgroundColor: "var(--ground-secondary)", border: "1px solid var(--hair-10)" }}>
                 <span style={{ fontSize: "11px", color: "var(--muted)" }}>Display Name (What recipient sees):</span>
@@ -581,7 +581,7 @@ export function EmailAuditView() {
           </div>
 
           {/* ── 3. Cryptographic Security Seals (SPF / DKIM / DMARC) ── */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1rem" }}>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* SPF Seal */}
             <div
               className="void-panel"

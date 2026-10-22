@@ -219,7 +219,7 @@ export default function UrlScannerPage() {
         {/* Left Column: Form & Telemetry Details (8 cols) */}
         <div className="lg:col-span-8 space-y-7">
           {/* Target URL Input Card */}
-          <LiquidGlassCard className="p-7">
+          <LiquidGlassCard className="p-4 sm:p-7">
             <div className="flex items-center gap-3 mb-5">
               <div className="w-10 h-10 rounded-2xl bg-blue-50 border border-blue-200/60 flex items-center justify-center text-blue-600 shadow-xs">
                 <Globe2 className="h-5 w-5" />
@@ -297,7 +297,7 @@ export default function UrlScannerPage() {
 
           {/* Loading Indicator */}
           {loading && (
-            <LiquidGlassCard className="p-7">
+            <LiquidGlassCard className="p-4 sm:p-7">
               <div className="py-4 flex flex-col items-center justify-center space-y-3 text-center">
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 border border-blue-200 text-blue-600 animate-spin">
                   <RefreshCw className="h-6 w-6" />
@@ -314,7 +314,7 @@ export default function UrlScannerPage() {
           {result && (
             <div className="space-y-6 animate-in fade-in duration-300">
               {/* Target Destination Card */}
-              <LiquidGlassCard className="p-6">
+              <LiquidGlassCard className="p-4 sm:p-6">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
@@ -341,7 +341,7 @@ export default function UrlScannerPage() {
 
               {/* Verdict Reasoning & Indicators */}
               <div className="grid gap-6 md:grid-cols-2">
-                <LiquidGlassCard className="p-6 flex flex-col justify-between">
+                <LiquidGlassCard className="p-4 sm:p-6 flex flex-col justify-between">
                   <div>
                     <div className="flex items-center gap-2 mb-3">
                       <FileText className="h-4 w-4 text-blue-600" />
@@ -370,7 +370,7 @@ export default function UrlScannerPage() {
                 </LiquidGlassCard>
 
                 {/* HTTP Perimeter Security Audit */}
-                <LiquidGlassCard className="p-6">
+                <LiquidGlassCard className="p-4 sm:p-6">
                   <div className="flex items-center gap-2 mb-3">
                     <ShieldCheck className="h-4 w-4 text-blue-600" />
                     <h3 className="font-bold text-sm text-slate-900 tracking-tight">Perimeter Security Controls</h3>
@@ -419,7 +419,7 @@ export default function UrlScannerPage() {
 
                 {/* Specific Security Warnings & Diagnostic Evidence */}
                 {result.securityChecks?.warnings && result.securityChecks.warnings.length > 0 && (
-                  <LiquidGlassCard className="p-6 md:col-span-2">
+                  <LiquidGlassCard className="p-4 sm:p-6 md:col-span-2">
                     <div className="flex items-center gap-2 mb-3">
                       <AlertTriangle className="h-4 w-4 text-amber-600" />
                       <h3 className="font-bold text-sm text-slate-900 tracking-tight">Active Security Diagnosed Anomalies</h3>
@@ -451,7 +451,7 @@ export default function UrlScannerPage() {
         {/* Right Column: Threat Risk Assessment Gauge + Multi-Vector Breakdown (4 cols) */}
         <div className="lg:col-span-4 space-y-7">
           {/* Security Score Panel */}
-          <LiquidGlassCard className="p-7 text-center">
+          <LiquidGlassCard className="p-4 sm:p-7 text-center">
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">
               Threat Risk Assessment
             </h3>
@@ -572,7 +572,7 @@ export default function UrlScannerPage() {
           </LiquidGlassCard>
 
           {/* Recent Audits Panel */}
-          <LiquidGlassCard className="p-6">
+          <LiquidGlassCard className="p-4 sm:p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <History className="h-4 w-4 text-blue-600" />

@@ -62,7 +62,7 @@ export function Header({ userName = "Yash", totalAlerts = 0 }: HeaderProps) {
       </div>
 
       {/* Right: meta + CTA */}
-      <div style={{ display: "flex", alignItems: "center", gap: "1.5rem" }}>
+      <div className="flex flex-wrap items-center gap-2 sm:gap-4 md:gap-6">
         {/* Date/time */}
         <div style={{ textAlign: "right" }} className="hidden sm:block">
           <p className="label" style={{ color: "var(--muted)", letterSpacing: "0.08em" }}>{currentDateTime.date}</p>

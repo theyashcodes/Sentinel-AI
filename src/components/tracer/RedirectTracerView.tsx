@@ -112,16 +112,15 @@ export function RedirectTracerView() {
             e.preventDefault();
             handleTrace();
           }}
-          style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}
+          className="flex flex-col sm:flex-row gap-2"
         >
           <input
             type="text"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="Enter shortlink or suspicious URL (e.g. bit.ly/xyz, pаypal.com, or full link)"
+            className="w-full sm:flex-1"
             style={{
-              flex: 1,
-              minWidth: "260px",
               height: "46px",
               padding: "0 1rem",
               backgroundColor: "var(--ground-secondary)",
@@ -137,7 +136,7 @@ export function RedirectTracerView() {
           <button
             type="submit"
             disabled={loading || !url.trim()}
-            className="btn-accent"
+            className="btn-accent w-full sm:w-auto"
             style={{ height: "46px", padding: "0 1.5rem", fontWeight: 600 }}
           >
             {loading ? "Unmasking..." : "Trace Redirects"}
@@ -451,7 +450,7 @@ export function RedirectTracerView() {
               </p>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div style={{ padding: "1rem", backgroundColor: "var(--panel-card)", border: "1px solid var(--hair-10)", boxShadow: "var(--panel-shadow)" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <span className="label" style={{ color: "var(--ink)", fontWeight: 600 }}>HTTPS Enforced</span>

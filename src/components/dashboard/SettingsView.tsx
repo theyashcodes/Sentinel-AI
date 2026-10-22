@@ -316,13 +316,7 @@ export function SettingsView() {
         </div>
 
         {/* Visual Cards Selection */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-            gap: "1.25rem",
-          }}
-        >
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
           {/* Card 1: Void Ground (Dark Mode) */}
           <div
             id="theme-card-dark"
@@ -961,13 +955,7 @@ export function SettingsView() {
               </p>
             </div>
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
-                gap: "0.85rem",
-              }}
-            >
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
               {CYBRO_SKINS.map((skin) => {
                 const isSelected = selectedSkin === skin.id;
                 return (
@@ -1115,7 +1103,7 @@ export function SettingsView() {
             <p style={{ fontSize: "13px", fontWeight: 400, color: "var(--ink)", margin: "0 0 0.5rem 0" }}>
               Diagnostic Inspection Sensitivity
             </p>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "0.75rem" }}>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {(["standard", "high", "paranoid"] as const).map((lvl) => (
                 <button
                   key={lvl}
@@ -1163,7 +1151,7 @@ export function SettingsView() {
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div style={{ padding: "1rem", backgroundColor: "var(--ground-secondary)", border: "1px solid var(--hair-06)" }}>
             <span className="label" style={{ color: "var(--muted)" }}>Cluster Node</span>
             <p style={{ fontSize: "13px", color: "var(--ink)", margin: "0.25rem 0 0 0", fontFamily: "'JetBrains Mono', monospace" }}>

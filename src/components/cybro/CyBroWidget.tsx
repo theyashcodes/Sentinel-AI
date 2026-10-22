@@ -415,12 +415,13 @@ export function CyBroWidget() {
       {/* ── CyBro Chat Window ── */}
       {isOpen && (
         <div
+          className="right-3 sm:right-6 bottom-20 sm:bottom-[94px]"
           style={{
             position: "fixed",
-            bottom: "94px",
-            right: "24px",
-            width: "395px",
-            height: "570px",
+            width: "calc(100vw - 24px)",
+            maxWidth: "395px",
+            height: "calc(100vh - 115px)",
+            maxHeight: "570px",
             backgroundColor: "#0B0F19",
             border: `1.5px solid ${
               currentMood === "happy"

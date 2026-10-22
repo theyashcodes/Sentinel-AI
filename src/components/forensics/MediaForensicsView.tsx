@@ -516,7 +516,7 @@ export function MediaForensicsView() {
           })()}
 
           {/* ── 2. Two-Column Trust Frameworks (C2PA & SynthID) ── */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "1.5rem" }}>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* C2PA Box */}
             <div
               className="void-panel"
@@ -733,7 +733,7 @@ export function MediaForensicsView() {
                 </span>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {result.cameraHardware.make && (
                   <div style={{ fontSize: "12px" }}>
                     <span style={{ color: "var(--muted)" }}>Manufacturer:</span>

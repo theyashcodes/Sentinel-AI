@@ -123,12 +123,9 @@ export function DashboardShell({ children }: DashboardShellProps) {
           zIndex: 10,
           flex: 1,
           minHeight: "100vh",
-          paddingTop: "1.5rem",
           paddingBottom: "3rem",
-          paddingLeft: "1.5rem",
-          paddingRight: "1.5rem",
         }}
-        className="md:ml-60"
+        className="md:ml-60 px-3 sm:px-6 pt-4 sm:pt-6"
       >
         {/* Mobile top bar */}
         <div

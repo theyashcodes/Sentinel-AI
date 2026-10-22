@@ -296,59 +296,62 @@ export function LiveHistoryView({ initialScans }: LiveHistoryViewProps) {
                     </div>
                   </div>
 
-                  {/* Type */}
-                  <div>
-                    <span className="chip" style={{ fontSize: "10px" }}>
-                      {scan.type}
-                    </span>
-                  </div>
+                  {/* Metadata & Actions row (compact flex on mobile, native grid columns on desktop) */}
+                  <div className="flex flex-wrap items-center justify-between gap-2.5 md:contents">
+                    {/* Type */}
+                    <div>
+                      <span className="chip" style={{ fontSize: "10px" }}>
+                        {scan.type}
+                      </span>
+                    </div>
 
-                  {/* Verdict */}
-                  <div>
-                    <span
-                      className="chip"
-                      style={{
-                        color: badge.color,
-                        borderColor: badge.border,
-                        backgroundColor: badge.bg,
-                        fontSize: "10px",
-                      }}
-                    >
-                      {badge.label}
-                    </span>
-                  </div>
+                    {/* Verdict */}
+                    <div>
+                      <span
+                        className="chip"
+                        style={{
+                          color: badge.color,
+                          borderColor: badge.border,
+                          backgroundColor: badge.bg,
+                          fontSize: "10px",
+                        }}
+                      >
+                        {badge.label}
+                      </span>
+                    </div>
 
-                  {/* Confidence / Status */}
-                  <div>
-                    <span className="label" style={{ color: "var(--ink)", fontSize: "11px", fontFamily: "var(--font-mono, monospace)" }}>
-                      {scan.result?.confidenceScore ? `${Math.round(scan.result.confidenceScore)}% CONF` : scan.status}
-                    </span>
-                  </div>
+                    {/* Confidence / Status */}
+                    <div>
+                      <span className="label" style={{ color: "var(--ink)", fontSize: "11px", fontFamily: "var(--font-mono, monospace)" }}>
+                        {scan.result?.confidenceScore ? `${Math.round(scan.result.confidenceScore)}% CONF` : scan.status}
+                      </span>
+                    </div>
 
-                  {/* Timestamp */}
-                  <div>
-                    <span className="label" style={{ color: "var(--muted)", fontSize: "11px" }}>
-                      {formatDateTime(new Date(scan.createdAt))}
-                    </span>
-                  </div>
+                    {/* Timestamp */}
+                    <div>
+                      <span className="label" style={{ color: "var(--muted)", fontSize: "11px" }}>
+                        {formatDateTime(new Date(scan.createdAt))}
+                      </span>
+                    </div>
 
-                  {/* Action: Open Bilingual Forensic Dossier */}
-                  <div style={{ textAlign: "right" }}>
-                    <button
-                      onClick={() => openReportForScan(scan)}
-                      className="btn btn-secondary"
-                      style={{
-                        fontSize: "11px",
-                        padding: "0.3rem 0.65rem",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "0.35rem",
-                      }}
-                      title="Generate and view bilingual forensic report"
-                    >
-                      <FileText style={{ width: "12px", height: "12px", color: "var(--accent)" }} />
-                      <span>Dossier</span>
-                    </button>
+                    {/* Action: Open Bilingual Forensic Dossier */}
+                    <div className="w-full sm:w-auto text-right">
+                      <button
+                        onClick={() => openReportForScan(scan)}
+                        className="btn btn-secondary w-full sm:w-auto justify-center"
+                        style={{
+                          fontSize: "11px",
+                          padding: "0.3rem 0.65rem",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "0.35rem",
+                        }}
+                        title="Generate and view bilingual forensic report"
+                      >
+                        <FileText style={{ width: "12px", height: "12px", color: "var(--accent)" }} />
+                        <span>Dossier</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
