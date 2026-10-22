@@ -9,6 +9,7 @@ import crypto from "crypto";
 import { RiskLevel } from "@prisma/client";
 import type { InputJsonValue } from "@prisma/client/runtime/client";
 import { handleApiError, ValidationError } from "@/lib/errors";
+import { assertRateLimit, scanRateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   let payloadHash = "";
@@ -26,6 +27,9 @@ export async function POST(req: NextRequest) {
     } catch {
       // unauthenticated scan (e.g. public API or extension without cookie)
     }
+
+    // Velocity defense: enforce scan rate limits (25 scans/min)
+    await assertRateLimit(req, scanRateLimit, userId || undefined);
 
     const body = await req.json();
     const parseResult = URLScanRequestSchema.safeParse(body);

@@ -10,6 +10,8 @@ import { QRDecoder } from "@/modules/scanner/qr/services/decoder";
 import { QRSecurityChecker } from "@/modules/scanner/qr/services/security-checker";
 import { MLInferenceService, SentinelScanVerdict } from "@/lib/ml/client";
 import { QRScanResponse } from "@/modules/scanner/qr/types/qr-scanner";
+import { assertRateLimit, scanRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/errors";
 
 export async function POST(req: NextRequest) {
   let decodedText = "";
@@ -24,6 +26,9 @@ export async function POST(req: NextRequest) {
     if (session) {
       userId = session.user.id;
     }
+
+    // Velocity defense: enforce scan rate limits (25 scans/min)
+    await assertRateLimit(req, scanRateLimit, userId || undefined);
 
     // Parse multipart form data
     const formData = await req.formData();
@@ -270,10 +275,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(responsePayload);
 
   } catch (error) {
-    console.error("QR Scan General Error:", error);
-    return NextResponse.json(
-      { error: "Internal Server Error", message: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
-    );
+    return handleApiError(error, req);
   }
 }

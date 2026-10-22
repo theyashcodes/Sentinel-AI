@@ -6,12 +6,15 @@ import { headers } from "next/headers";
 import { createHash } from "crypto";
 import { z } from "zod";
 import { withErrorHandler } from "@/lib/errors";
+import { assertRateLimit, scanRateLimit } from "@/lib/rate-limit";
 
 const TracerSchema = z.object({
   url: z.string().min(1, "URL is required").max(2048),
 });
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
+  await assertRateLimit(req, scanRateLimit);
+
   const body = await req.json();
   const { url } = TracerSchema.parse(body);
 

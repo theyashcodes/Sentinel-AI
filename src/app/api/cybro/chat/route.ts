@@ -1,28 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateCyBroReply } from "@/lib/cybro/brain";
+import { assertRateLimit, cybroRateLimit } from "@/lib/rate-limit";
+import { handleApiError, ValidationError } from "@/lib/errors";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
+    await assertRateLimit(req, cybroRateLimit);
+
     const body = await req.json();
     const message = body.message || "";
     const history = Array.isArray(body.history) ? body.history : [];
 
     if (!message.trim()) {
-      return NextResponse.json(
-        { error: "Message content cannot be empty" },
-        { status: 400 }
-      );
+      throw new ValidationError("Message content cannot be empty");
     }
 
     const response = await generateCyBroReply(message, history);
     return NextResponse.json(response);
   } catch (err) {
-    console.error("[CyBro Chat API Error]", err);
-    return NextResponse.json(
-      { error: "CyBro temporary neural network glitch" },
-      { status: 500 }
-    );
+    return handleApiError(err, req);
   }
 }

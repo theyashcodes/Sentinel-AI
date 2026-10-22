@@ -88,6 +88,16 @@ export function handleApiError(
       );
     }
 
+    const responseHeaders: Record<string, string> = { "x-request-id": requestId };
+    if (
+      error.statusCode === 429 &&
+      typeof error.details === "object" &&
+      error.details &&
+      "retryAfterSeconds" in (error.details as Record<string, unknown>)
+    ) {
+      responseHeaders["Retry-After"] = String((error.details as Record<string, unknown>).retryAfterSeconds);
+    }
+
     return NextResponse.json(
       {
         success: false,
@@ -99,7 +109,7 @@ export function handleApiError(
           timestamp: error.timestamp || timestamp,
         },
       },
-      { status: error.statusCode, headers: { "x-request-id": requestId } }
+      { status: error.statusCode, headers: responseHeaders }
     );
   }
 

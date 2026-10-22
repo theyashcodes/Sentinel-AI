@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { assertRateLimit, forensicsRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/errors";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
+    await assertRateLimit(req, forensicsRateLimit);
+
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
     const clientMetricsRaw = formData.get("clientMetrics") as string | null;
@@ -191,10 +195,6 @@ Respond ONLY in valid JSON matching this schema:
       deepLearningEnhanced: Boolean(groqVerdict),
     });
   } catch (error) {
-    console.error("[Voice Forensics API Error]", error);
-    return NextResponse.json(
-      { error: "Internal Server Error", message: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
-    );
+    return handleApiError(error, req);
   }
 }
