@@ -16,13 +16,31 @@ import {
   RefreshCw,
   Lock,
   Smile,
+  ShieldCheck,
+  ShieldAlert,
+  KeyRound,
+  Mail,
+  AlertCircle,
+  X,
 } from "lucide-react";
 import { CyBroAvatar, CYBRO_SKINS, CyBroSkin } from "@/components/cybro/CyBroAvatar";
+import { authClient } from "@/lib/auth-client";
 
 export function SettingsView() {
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // 2FA Security states
+  const { data: session } = authClient.useSession();
+  const [is2FAEnabled, setIs2FAEnabled] = useState(false);
+  const [modal2FAOpen, setModal2FAOpen] = useState(false);
+  const [modalAction, setModalAction] = useState<"enable" | "disable">("enable");
+  const [password2FA, setPassword2FA] = useState("");
+  const [loading2FA, setLoading2FA] = useState(false);
+  const [error2FA, setError2FA] = useState<string | null>(null);
+  const [success2FA, setSuccess2FA] = useState<string | null>(null);
+  const [testOtpSent, setTestOtpSent] = useState(false);
 
   // Workspace settings state
   const [telemetryEnabled, setTelemetryEnabled] = useState(true);
@@ -98,6 +116,81 @@ export function SettingsView() {
     setTheme(newTheme);
     setSaveSuccess(true);
     setTimeout(() => setSaveSuccess(false), 2400);
+  };
+
+  useEffect(() => {
+    if (session?.user) {
+      setIs2FAEnabled(Boolean((session.user as unknown as { twoFactorEnabled?: boolean })?.twoFactorEnabled));
+    }
+  }, [session]);
+
+  const handleOpen2FAModal = (action: "enable" | "disable") => {
+    setModalAction(action);
+    setPassword2FA("");
+    setError2FA(null);
+    setSuccess2FA(null);
+    setModal2FAOpen(true);
+  };
+
+  const handleConfirm2FA = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!password2FA) {
+      setError2FA("Account password is required to verify identity.");
+      return;
+    }
+    setLoading2FA(true);
+    setError2FA(null);
+
+    try {
+      if (modalAction === "enable") {
+        const res = await authClient.twoFactor.enable({ password: password2FA });
+        if (res.error) {
+          setError2FA(res.error.message || "Failed to enable 2FA. Please verify your password.");
+          setLoading2FA(false);
+          return;
+        }
+        setIs2FAEnabled(true);
+        setSuccess2FA("Two-Factor Authentication is now ENABLED! Your account is protected.");
+      } else {
+        const res = await authClient.twoFactor.disable({ password: password2FA });
+        if (res.error) {
+          setError2FA(res.error.message || "Failed to disable 2FA. Please verify your password.");
+          setLoading2FA(false);
+          return;
+        }
+        setIs2FAEnabled(false);
+        setSuccess2FA("Two-Factor Authentication has been disabled.");
+      }
+
+      setTimeout(() => {
+        setModal2FAOpen(false);
+        setPassword2FA("");
+        setError2FA(null);
+        setSuccess2FA(null);
+      }, 1500);
+    } catch (err: unknown) {
+      setError2FA(err instanceof Error ? err.message : "Security verification failed. Please try again.");
+    } finally {
+      setLoading2FA(false);
+    }
+  };
+
+  const handleSendTestOTP = async () => {
+    setLoading2FA(true);
+    setError2FA(null);
+    try {
+      const res = await authClient.twoFactor.sendOtp();
+      if (res.error) {
+        setError2FA(res.error.message || "Failed to send test OTP.");
+      } else {
+        setTestOtpSent(true);
+        setTimeout(() => setTestOtpSent(false), 5000);
+      }
+    } catch {
+      setError2FA("Unable to dispatch OTP code. Please check configuration.");
+    } finally {
+      setLoading2FA(false);
+    }
   };
 
   const handleSavePreferences = () => {
@@ -541,6 +634,144 @@ export function SettingsView() {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+          {/* ── Sub-Section: Two-Factor Authentication (2FA) ── */}
+          <div
+            id="security-2fa-section"
+            style={{
+              padding: "1.25rem",
+              borderRadius: "14px",
+              backgroundColor: is2FAEnabled ? "rgba(16, 185, 129, 0.04)" : "var(--ground-secondary)",
+              border: is2FAEnabled ? "1px solid rgba(16, 185, 129, 0.25)" : "1px solid var(--hair-10)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "1rem",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: "0.85rem", alignItems: "flex-start" }}>
+                <div
+                  style={{
+                    width: "38px",
+                    height: "38px",
+                    borderRadius: "10px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: is2FAEnabled ? "rgba(16, 185, 129, 0.15)" : "rgba(255, 255, 255, 0.05)",
+                    color: is2FAEnabled ? "#10B981" : "var(--muted)",
+                    flexShrink: 0,
+                    border: `1px solid ${is2FAEnabled ? "rgba(16, 185, 129, 0.3)" : "var(--hair-10)"}`,
+                  }}
+                >
+                  {is2FAEnabled ? <ShieldCheck style={{ width: "20px", height: "20px" }} /> : <ShieldAlert style={{ width: "20px", height: "20px" }} />}
+                </div>
+
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                    <h3 style={{ fontSize: "14px", fontWeight: 500, color: "var(--ink)", margin: 0 }}>
+                      Two-Factor Authentication (2FA)
+                    </h3>
+                    <span
+                      style={{
+                        fontSize: "10px",
+                        fontWeight: 600,
+                        fontFamily: "'JetBrains Mono', monospace",
+                        letterSpacing: "0.06em",
+                        backgroundColor: is2FAEnabled ? "rgba(16, 185, 129, 0.15)" : "rgba(100, 116, 139, 0.15)",
+                        color: is2FAEnabled ? "#10B981" : "var(--muted)",
+                        border: `1px solid ${is2FAEnabled ? "rgba(16, 185, 129, 0.3)" : "var(--hair-10)"}`,
+                        padding: "2px 8px",
+                        borderRadius: "12px",
+                      }}
+                    >
+                      {is2FAEnabled ? "● ACTIVE & ENFORCED" : "○ DISABLED"}
+                    </span>
+                  </div>
+                  <p style={{ fontSize: "12px", color: "var(--muted)", margin: "0.35rem 0 0 0", maxWidth: "620px", lineHeight: 1.5 }}>
+                    Secures your account by requiring a 6-digit one-time verification code dispatched to your registered email address on every login.
+                  </p>
+                  {session?.user?.email && (
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginTop: "0.5rem", fontSize: "11px", color: "var(--muted)" }}>
+                      <Mail style={{ width: "12px", height: "12px", color: "var(--accent)" }} />
+                      <span>Dispatch destination:</span>
+                      <strong style={{ color: "var(--ink)", fontFamily: "'JetBrains Mono', monospace" }}>
+                        {session.user.email}
+                      </strong>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                {is2FAEnabled && (
+                  <button
+                    type="button"
+                    onClick={handleSendTestOTP}
+                    disabled={loading2FA}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.4rem",
+                      padding: "0.45rem 0.85rem",
+                      fontSize: "11px",
+                      fontFamily: "'JetBrains Mono', monospace",
+                      backgroundColor: "var(--panel-card)",
+                      color: "var(--ink)",
+                      border: "1px solid var(--hair-10)",
+                      cursor: "pointer",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    <RefreshCw style={{ width: "12px", height: "12px" }} />
+                    <span>{testOtpSent ? "Code Dispatched!" : "Test Dispatch"}</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  id="toggle-2fa-button"
+                  onClick={() => handleOpen2FAModal(is2FAEnabled ? "disable" : "enable")}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    padding: "0.5rem 1rem",
+                    fontSize: "12px",
+                    fontWeight: 500,
+                    cursor: "pointer",
+                    backgroundColor: is2FAEnabled ? "rgba(239, 68, 68, 0.1)" : "var(--ink)",
+                    color: is2FAEnabled ? "#EF4444" : "var(--ground)",
+                    border: is2FAEnabled ? "1px solid rgba(239, 68, 68, 0.3)" : "1px solid var(--ink)",
+                    transition: "all 0.2s ease",
+                  }}
+                >
+                  <KeyRound style={{ width: "13px", height: "13px" }} />
+                  <span>{is2FAEnabled ? "Disable 2FA" : "Enable Email 2FA"}</span>
+                </button>
+              </div>
+            </div>
+
+            {testOtpSent && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  padding: "0.6rem 0.85rem",
+                  borderRadius: "8px",
+                  backgroundColor: "rgba(16, 185, 129, 0.1)",
+                  border: "1px solid rgba(16, 185, 129, 0.25)",
+                  fontSize: "11px",
+                  color: "#10B981",
+                }}
+              >
+                <Check style={{ width: "13px", height: "13px" }} />
+                <span>Test 2FA OTP code successfully sent to {session?.user?.email} (and logged to console in dev).</span>
+              </div>
+            )}
+          </div>
+
           {/* Toggle: Live Telemetry */}
           <div
             style={{
@@ -965,6 +1196,195 @@ export function SettingsView() {
           </button>
         </div>
       </div>
+
+      {/* ── 2FA CONFIRMATION MODAL ── */}
+      {modal2FAOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 100,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1.5rem",
+            backgroundColor: "rgba(0, 0, 0, 0.75)",
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: "440px",
+              backgroundColor: "var(--panel-card)",
+              border: "1px solid var(--hair-15)",
+              borderRadius: "16px",
+              padding: "1.75rem",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.7)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "1.25rem",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                <div
+                  style={{
+                    width: "32px",
+                    height: "32px",
+                    borderRadius: "8px",
+                    backgroundColor: modalAction === "enable" ? "rgba(16, 185, 129, 0.15)" : "rgba(239, 68, 68, 0.15)",
+                    color: modalAction === "enable" ? "#10B981" : "#EF4444",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Lock style={{ width: "16px", height: "16px" }} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: "14px", fontWeight: 600, color: "var(--ink)", margin: 0 }}>
+                    {modalAction === "enable" ? "Enable Two-Factor Authentication" : "Disable Two-Factor Authentication"}
+                  </h3>
+                  <p style={{ fontSize: "11px", color: "var(--muted)", margin: "2px 0 0 0" }}>
+                    Verify your identity to proceed
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModal2FAOpen(false)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "var(--muted)",
+                  cursor: "pointer",
+                  padding: "4px",
+                }}
+              >
+                <X style={{ width: "16px", height: "16px" }} />
+              </button>
+            </div>
+
+            <p style={{ fontSize: "12px", color: "var(--muted)", lineHeight: 1.5, margin: 0 }}>
+              {modalAction === "enable"
+                ? "To activate Email 2FA protection, please enter your current account password. Every future login will require entering a 6-digit OTP sent to your email."
+                : "Disabling Two-Factor Authentication reduces account protection. Enter your password to confirm removal."}
+            </p>
+
+            {error2FA && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  padding: "0.6rem 0.85rem",
+                  borderRadius: "8px",
+                  backgroundColor: "rgba(239, 68, 68, 0.1)",
+                  border: "1px solid rgba(239, 68, 68, 0.25)",
+                  fontSize: "12px",
+                  color: "#EF4444",
+                }}
+              >
+                <AlertCircle style={{ width: "14px", height: "14px", flexShrink: 0 }} />
+                <span>{error2FA}</span>
+              </div>
+            )}
+
+            {success2FA && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  padding: "0.6rem 0.85rem",
+                  borderRadius: "8px",
+                  backgroundColor: "rgba(16, 185, 129, 0.1)",
+                  border: "1px solid rgba(16, 185, 129, 0.25)",
+                  fontSize: "12px",
+                  color: "#10B981",
+                }}
+              >
+                <Check style={{ width: "14px", height: "14px", flexShrink: 0 }} />
+                <span>{success2FA}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleConfirm2FA} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+                <label style={{ fontSize: "11px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  Current Account Password
+                </label>
+                <input
+                  type="password"
+                  required
+                  autoFocus
+                  value={password2FA}
+                  onChange={(e) => setPassword2FA(e.target.value)}
+                  placeholder="••••••••••••"
+                  style={{
+                    width: "100%",
+                    height: "42px",
+                    borderRadius: "8px",
+                    backgroundColor: "var(--ground-secondary)",
+                    border: "1px solid var(--hair-15)",
+                    color: "var(--ink)",
+                    padding: "0 12px",
+                    fontSize: "13px",
+                    outline: "none",
+                  }}
+                />
+              </div>
+
+              <div style={{ display: "flex", gap: "0.75rem", justifyContent: "flex-end", marginTop: "0.5rem" }}>
+                <button
+                  type="button"
+                  onClick={() => setModal2FAOpen(false)}
+                  disabled={loading2FA}
+                  style={{
+                    padding: "0.5rem 1rem",
+                    fontSize: "12px",
+                    backgroundColor: "transparent",
+                    color: "var(--muted)",
+                    border: "1px solid var(--hair-10)",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading2FA}
+                  style={{
+                    padding: "0.5rem 1.25rem",
+                    fontSize: "12px",
+                    fontWeight: 500,
+                    backgroundColor: modalAction === "enable" ? "var(--ink)" : "#EF4444",
+                    color: modalAction === "enable" ? "var(--ground)" : "#FFFFFF",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor: loading2FA ? "not-allowed" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.4rem",
+                  }}
+                >
+                  {loading2FA && <RefreshCw style={{ width: "12px", height: "12px", animation: "spin 1s linear infinite" }} />}
+                  <span>
+                    {loading2FA
+                      ? "Verifying..."
+                      : modalAction === "enable"
+                      ? "Confirm & Enable 2FA"
+                      : "Confirm & Disable 2FA"}
+                  </span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

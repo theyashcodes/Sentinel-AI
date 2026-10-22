@@ -1,26 +1,37 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { signIn, authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { QuantumFluxBackground } from "@/components/ui/quantum-flux-background";
 import { SentinelLogo } from "@/components/icons/SentinelLogo";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mail, Lock, KeyRound, Eye, EyeOff, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Mail, Lock, KeyRound, Eye, EyeOff, AlertCircle, CheckCircle2, ShieldCheck, RefreshCw } from "lucide-react";
 
 export default function SignInPage() {
   const [email,    setEmail]    = useState("");
   const [password, setPassword] = useState("");
   const [otp,      setOtp]      = useState("");
+  const [twoFactorOtp, setTwoFactorOtp] = useState("");
+  const [resendCooldown, setResendCooldown] = useState(0);
   const [remember, setRemember] = useState(false);
   const [showPwd,  setShowPwd]  = useState(false);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState<string | null>(null);
   const [success,  setSuccess]  = useState<string | null>(null);
-  const [mode,     setMode]     = useState<"sign-in" | "forgot" | "verify">("sign-in");
+  const [mode,     setMode]     = useState<"sign-in" | "forgot" | "verify" | "two-factor">("sign-in");
 
   const router = useRouter();
+
+  // Cooldown timer for 2FA resend
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const interval = setInterval(() => {
+      setResendCooldown((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [resendCooldown]);
 
   const errMsg = (e: { message?: string; code?: string } | null) =>
     e?.message ?? e?.code ?? "Unable to authenticate. Please try again.";
@@ -30,11 +41,71 @@ export default function SignInPage() {
     e.preventDefault();
     setLoading(true); setError(null); setSuccess(null);
     try {
-      const { error: err } = await signIn.email({ email, password });
-      if (err) { setError(errMsg(err)); return; }
+      const res = await signIn.email({ email, password });
+      if (res.error) { setError(errMsg(res.error)); return; }
+
+      // Check if 2FA challenge is requested by Better Auth
+      if ((res.data as unknown as { twoFactorRedirect?: boolean })?.twoFactorRedirect) {
+        setMode("two-factor");
+        setSuccess("Two-Factor Authentication required. Dispatching 6-digit code to your email...");
+        setResendCooldown(30);
+        try {
+          await authClient.twoFactor.sendOtp();
+          setSuccess("6-digit security code sent to your email!");
+        } catch {
+          // If already queued/sent, keep user on 2FA entry
+        }
+        return;
+      }
+
       router.push("/dashboard");
     } catch { setError("Unexpected error. Please try again."); }
     finally   { setLoading(false); }
+  };
+
+  /* ── Verify 2FA OTP ── */
+  const handleVerify2FA = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!twoFactorOtp || twoFactorOtp.trim().length < 6) {
+      setError("Please enter the complete 6-digit security code.");
+      return;
+    }
+    setLoading(true); setError(null); setSuccess(null);
+    try {
+      const res = await authClient.twoFactor.verifyOtp({
+        code: twoFactorOtp.trim(),
+        trustDevice: remember,
+      });
+      if (res.error) {
+        setError(errMsg(res.error));
+        return;
+      }
+      setSuccess("Identity verified! Entering Sentinel console...");
+      router.push("/dashboard");
+    } catch {
+      setError("Verification failed. Please check the 6-digit code and try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* ── Resend 2FA OTP ── */
+  const handleResend2FA = async () => {
+    if (resendCooldown > 0 || loading) return;
+    setLoading(true); setError(null); setSuccess(null);
+    try {
+      const res = await authClient.twoFactor.sendOtp();
+      if (res.error) {
+        setError(errMsg(res.error));
+        return;
+      }
+      setSuccess("New 6-digit code dispatched to your email!");
+      setResendCooldown(45);
+    } catch {
+      setError("Failed to resend code. Please try again in a few moments.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   /* ── Send OTP ── */
@@ -133,6 +204,7 @@ export default function SignInPage() {
               {mode === "sign-in" && "AI Security Platform"}
               {mode === "forgot"  && "Reset your access key"}
               {mode === "verify"  && "Enter OTP authorization"}
+              {mode === "two-factor" && "Two-Factor Security Verification"}
             </p>
           </div>
 
@@ -297,6 +369,87 @@ export default function SignInPage() {
                 className="w-full text-[12px] text-gray-500 hover:text-white transition-colors py-1">
                 ← Cancel
               </button>
+            </form>
+          )}
+
+          {/* ══════════════ MODE: TWO-FACTOR (2FA) ══════════════ */}
+          {mode === "two-factor" && (
+            <form onSubmit={handleVerify2FA} className="space-y-5">
+              <div
+                className="flex items-center gap-2.5 p-3 rounded-xl border"
+                style={{
+                  background: "rgba(16,185,129,0.06)",
+                  borderColor: "rgba(16,185,129,0.2)",
+                }}
+              >
+                <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
+                <div className="text-[12px] leading-tight text-gray-300">
+                  <span className="font-semibold text-emerald-400 block mb-0.5">2FA Challenge Triggered</span>
+                  A 6-digit security code was dispatched to <strong className="text-white">{email}</strong>.
+                </div>
+              </div>
+
+              <div className="space-y-[5px]">
+                <label htmlFor="2fa-code"
+                  className="block text-[11px] uppercase tracking-[0.12em] font-semibold text-gray-500 ml-[2px]">
+                  6-Digit Email Code
+                </label>
+                <div className="relative">
+                  <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 w-[15px] h-[15px] text-gray-500 pointer-events-none" />
+                  <input
+                    id="2fa-code"
+                    type="text"
+                    required
+                    maxLength={6}
+                    autoFocus
+                    value={twoFactorOtp}
+                    onChange={(e) => setTwoFactorOtp(e.target.value.replace(/\D/g, ""))}
+                    placeholder="••••••"
+                    className="auth-input pl-11 text-center font-mono tracking-[0.35em] text-[18px] text-emerald-400 font-bold"
+                  />
+                </div>
+              </div>
+
+              {/* Trust this device checkbox */}
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="remember-2fa"
+                  checked={remember}
+                  onChange={(e) => setRemember(e.target.checked)}
+                  className="w-4 h-4 rounded cursor-pointer accent-white"
+                  style={{ background: "rgba(255,255,255,0.05)", borderColor: "rgba(255,255,255,0.10)" }}
+                />
+                <label htmlFor="remember-2fa" className="text-[12px] text-gray-400 cursor-pointer select-none">
+                  Trust this device for 30 days
+                </label>
+              </div>
+
+              <button type="submit" disabled={loading} className="auth-btn-primary group">
+                <span className="relative z-10">{loading ? "Validating Token…" : "Verify & Authorize"}</span>
+                <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/35 to-transparent
+                  -translate-x-full group-hover:translate-x-full transition-transform duration-[900ms]" />
+              </button>
+
+              <div className="flex items-center justify-between pt-1">
+                <button
+                  type="button"
+                  onClick={handleResend2FA}
+                  disabled={loading || resendCooldown > 0}
+                  className="text-[11px] text-gray-400 hover:text-white transition-colors flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
+                  {resendCooldown > 0 ? `Resend Code in ${resendCooldown}s` : "Resend Security Code"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => goMode("sign-in")}
+                  className="text-[11px] text-gray-500 hover:text-gray-300 transition-colors"
+                >
+                  ← Back to Sign In
+                </button>
+              </div>
             </form>
           )}
 

@@ -1,6 +1,6 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
-import { emailOTP } from "better-auth/plugins";
+import { emailOTP, twoFactor } from "better-auth/plugins";
 import { db } from "@/lib/db";
 
 const baseURL =
@@ -37,7 +37,21 @@ export const auth = betterAuth({
                 console.log(`OTP Code: ${otp}`);
                 console.log(`========================================\n\n`);
             },
-        })
+        }),
+        twoFactor({
+            issuer: "Sentinel AI",
+            skipVerificationOnEnable: true,
+            otpOptions: {
+                async sendOTP({ user, otp }) {
+                    console.log(`\n\n========================================`);
+                    console.log(`🔒 SENTINEL 2FA EMAIL OTP`);
+                    console.log(`User: ${user.name} <${user.email}>`);
+                    console.log(`2FA Security Code: ${otp}`);
+                    console.log(`Valid for: 3 minutes`);
+                    console.log(`========================================\n\n`);
+                },
+            },
+        }),
     ],
     emailAndPassword: {
         enabled: true,
