@@ -1,9 +1,29 @@
 // Sentinel AI Email Security Engine (Gmail SMTP + Nodemailer)
 import nodemailer from "nodemailer";
 
+const DEFAULT_GMAIL_USER = "yashguptaofficial333@gmail.com";
+const DEFAULT_GMAIL_PASS = "tvduigvvavjuraky";
+
+export function getGmailCredentials() {
+    const gmailUser = (
+        process.env.GMAIL_USER ||
+        process.env.GMAIL_EMAIL ||
+        process.env.EMAIL_USER ||
+        DEFAULT_GMAIL_USER
+    )?.trim();
+
+    const gmailPass = (
+        process.env.GMAIL_APP_PASSWORD ||
+        process.env.GMAIL_PASSWORD ||
+        process.env.EMAIL_APP_PASSWORD ||
+        DEFAULT_GMAIL_PASS
+    )?.replace(/\s+/g, "");
+
+    return { gmailUser, gmailPass };
+}
+
 function getTransporter() {
-    const gmailUser = process.env.GMAIL_USER?.trim();
-    const gmailPass = process.env.GMAIL_APP_PASSWORD?.replace(/\s+/g, "");
+    const { gmailUser, gmailPass } = getGmailCredentials();
 
     if (!gmailUser || !gmailPass) {
         return null;
@@ -115,15 +135,15 @@ export async function send2FAEmail({ to, userName, otp, type = "2fa" }: Send2FAE
 </html>
     `;
 
-    const gmailUser = process.env.GMAIL_USER?.trim();
+    const { gmailUser } = getGmailCredentials();
     const transporter = getTransporter();
 
     if (!transporter || !gmailUser) {
-        console.warn("⚠️ [Gmail SMTP] GMAIL_USER or GMAIL_APP_PASSWORD is not configured in process.env. Email logged to console only.");
+        console.warn("⚠️ [Gmail SMTP] Gmail credentials not configured. Email logged to console only.");
         return {
             success: false,
             reason: "NO_CONFIG",
-            error: "GMAIL_USER or GMAIL_APP_PASSWORD is not configured in process.env",
+            error: "Gmail credentials not configured in process.env",
         };
     }
 
