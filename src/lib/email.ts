@@ -1,7 +1,22 @@
+import nodemailer from "nodemailer";
 import { Resend } from "resend";
+
+const gmailUser = process.env.GMAIL_USER;
+const gmailPass = process.env.GMAIL_APP_PASSWORD;
 
 const resendApiKey = process.env.RESEND_API_KEY;
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
+
+const transporter =
+    gmailUser && gmailPass
+        ? nodemailer.createTransport({
+              service: "gmail",
+              auth: {
+                  user: gmailUser,
+                  pass: gmailPass.replace(/\s+/g, ""),
+              },
+          })
+        : null;
 
 interface Send2FAEmailParams {
     to: string;
@@ -27,19 +42,7 @@ export async function send2FAEmail({ to, userName, otp, type = "2fa" }: Send2FAE
     console.log(`Timestamp: ${new Date().toISOString()}`);
     console.log(`========================================\n`);
 
-    if (!resend) {
-        console.warn("⚠️ [Resend] RESEND_API_KEY is not defined in environment variables. Email logged to console.");
-        return { success: false, reason: "NO_API_KEY" };
-    }
-
-    try {
-        const fromEmail = process.env.EMAIL_FROM || "Sentinel AI <onboarding@resend.dev>";
-
-        const { data, error } = await resend.emails.send({
-            from: fromEmail,
-            to: [to],
-            subject,
-            html: `
+    const htmlContent = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -105,18 +108,48 @@ export async function send2FAEmail({ to, userName, otp, type = "2fa" }: Send2FAE
   </table>
 </body>
 </html>
-            `
-        });
+    `;
 
-        if (error) {
-            console.error("❌ [Resend] Failed to send email:", error);
-            return { success: false, error };
+    // 1. Try Gmail SMTP first (no domain restriction, works for ANY recipient)
+    if (transporter && gmailUser) {
+        try {
+            const info = await transporter.sendMail({
+                from: `Sentinel AI <${gmailUser}>`,
+                to,
+                subject,
+                html: htmlContent,
+            });
+            console.log("✅ [Gmail SMTP] Email delivered successfully to:", to, "ID:", info.messageId);
+            return { success: true, messageId: info.messageId };
+        } catch (smtpErr) {
+            console.error("❌ [Gmail SMTP] Failed to send email via SMTP:", smtpErr);
         }
-
-        console.log("✅ [Resend] Email delivered successfully. ID:", data?.id);
-        return { success: true, data };
-    } catch (err) {
-        console.error("❌ [Resend] Exception occurred:", err);
-        return { success: false, error: err };
     }
+
+    // 2. Fallback to Resend
+    if (resend) {
+        try {
+            const fromEmail = process.env.EMAIL_FROM || "Sentinel AI <onboarding@resend.dev>";
+            const { data, error } = await resend.emails.send({
+                from: fromEmail,
+                to: [to],
+                subject,
+                html: htmlContent,
+            });
+
+            if (error) {
+                console.error("❌ [Resend] Failed to send email:", error);
+                return { success: false, error };
+            }
+
+            console.log("✅ [Resend] Email delivered successfully. ID:", data?.id);
+            return { success: true, data };
+        } catch (resendErr) {
+            console.error("❌ [Resend] Exception occurred:", resendErr);
+            return { success: false, error: resendErr };
+        }
+    }
+
+    console.warn("⚠️ No active mail provider configured. Email logged to console only.");
+    return { success: false, reason: "NO_PROVIDER" };
 }
