@@ -8,6 +8,7 @@ import { auth } from "@/lib/auth";
 import crypto from "crypto";
 import { RiskLevel } from "@prisma/client";
 import type { InputJsonValue } from "@prisma/client/runtime/client";
+import { handleApiError, ValidationError } from "@/lib/errors";
 
 export async function POST(req: NextRequest) {
   let payloadHash = "";
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
     const parseResult = URLScanRequestSchema.safeParse(body);
 
     if (!parseResult.success) {
-      return NextResponse.json({ error: "Invalid URL", details: parseResult.error }, { status: 400 });
+      throw new ValidationError("Invalid URL provided for security evaluation", parseResult.error.issues);
     }
 
     const { url } = parseResult.data;
@@ -214,12 +215,6 @@ export async function POST(req: NextRequest) {
       mlProbability: mlVerdict?.probabilities,
     });
   } catch (error) {
-    console.error("URL Scan Error:", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-
-    return NextResponse.json(
-      { error: "Scan Failed", message: errorMessage },
-      { status: 500 }
-    );
+    return handleApiError(error, req);
   }
 }

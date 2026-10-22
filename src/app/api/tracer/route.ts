@@ -5,25 +5,17 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { createHash } from "crypto";
 import { z } from "zod";
+import { withErrorHandler } from "@/lib/errors";
 
 const TracerSchema = z.object({
   url: z.string().min(1, "URL is required").max(2048),
 });
 
-export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json();
-    const parsed = TracerSchema.safeParse(body);
+export const POST = withErrorHandler(async (req: NextRequest) => {
+  const body = await req.json();
+  const { url } = TracerSchema.parse(body);
 
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: "Invalid URL", details: parsed.error.issues[0]?.message },
-        { status: 400 }
-      );
-    }
-
-    const { url } = parsed.data;
-    const result = await traceRedirectChain(url);
+  const result = await traceRedirectChain(url);
 
     // Save scan to database for audit history
     try {
@@ -81,11 +73,4 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(result);
-  } catch (error) {
-    console.error("Tracer API error:", error);
-    return NextResponse.json(
-      { error: "Failed to trace URL redirect chain", message: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
-    );
-  }
-}
+});
