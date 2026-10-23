@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { deleteCloudRestorePoint } from "@/lib/backup/backupEngine";
 import { handleApiError } from "@/lib/errors";
@@ -8,7 +9,17 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth.api.getSession({ headers: req.headers });
+    let session = null;
+    try {
+      session = await auth.api.getSession({ headers: req.headers });
+    } catch {}
+
+    if (!session?.user?.id) {
+      try {
+        session = await auth.api.getSession({ headers: await headers() });
+      } catch {}
+    }
+
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

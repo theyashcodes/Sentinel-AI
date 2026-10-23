@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import {
   createCloudRestorePoint,
@@ -9,7 +10,17 @@ import { handleApiError } from "@/lib/errors";
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({ headers: req.headers });
+    let session = null;
+    try {
+      session = await auth.api.getSession({ headers: req.headers });
+    } catch {}
+
+    if (!session?.user?.id) {
+      try {
+        session = await auth.api.getSession({ headers: await headers() });
+      } catch {}
+    }
+
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -23,12 +34,27 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({ headers: req.headers });
+    let session = null;
+    try {
+      session = await auth.api.getSession({ headers: req.headers });
+    } catch {}
+
+    if (!session?.user?.id) {
+      try {
+        session = await auth.api.getSession({ headers: await headers() });
+      } catch {}
+    }
+
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const rl = await assertRateLimit(req, backupRateLimit, session.user.id);
+    let rl = null;
+    try {
+      rl = await assertRateLimit(req, backupRateLimit, session.user.id);
+    } catch (rlErr) {
+      return handleApiError(rlErr, req);
+    }
 
     const body = await req.json().catch(() => ({}));
     const label = typeof body.label === "string" ? body.label : undefined;
@@ -37,7 +63,10 @@ export async function POST(req: NextRequest) {
     const snapshot = await createCloudRestorePoint(session.user.id, label, clientPreferences);
 
     const res = NextResponse.json({ success: true, snapshot }, { status: 201 });
-    return applyRateLimitHeaders(res, rl);
+    if (rl) {
+      applyRateLimitHeaders(res, rl);
+    }
+    return res;
   } catch (error) {
     return handleApiError(error, req);
   }

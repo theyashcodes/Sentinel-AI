@@ -45,7 +45,9 @@ export function BackupRecoverySection() {
   const fetchSnapshots = async () => {
     try {
       setLoadingSnapshots(true);
-      const res = await fetch("/api/user/backup/snapshots");
+      const res = await fetch("/api/user/backup/snapshots", {
+        credentials: "include",
+      });
       if (res.ok) {
         const data = await res.json();
         setSnapshots(data.snapshots || []);
@@ -66,19 +68,28 @@ export function BackupRecoverySection() {
     try {
       setLoadingExport(true);
       setStatusMessage(null);
-      const res = await fetch("/api/user/backup");
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || "Failed to generate backup archive.");
+      const res = await fetch("/api/user/backup", {
+        method: "GET",
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data) {
+        const errMsg =
+          data?.error?.message ||
+          (typeof data?.error === "string" ? data.error : null) ||
+          data?.message ||
+          "Failed to generate backup archive.";
+        throw new Error(errMsg);
       }
 
-      const blob = await res.blob();
-      const contentDisposition = res.headers.get("content-disposition");
-      let filename = `sentinel-backup-${new Date().toISOString().split("T")[0]}.json`;
-      if (contentDisposition) {
-        const match = contentDisposition.match(/filename="?([^"]+)"?/);
-        if (match && match[1]) filename = match[1];
-      }
+      // Generate downloadable JSON file client-side directly from response
+      const jsonStr = JSON.stringify(data, null, 2);
+      const blob = new Blob([jsonStr], { type: "application/json;charset=utf-8;" });
+      const userEmail = data.data?.user?.email?.replace(/[^a-zA-Z0-9]/g, "_") || "user";
+      const filename = `sentinel-ai-backup-${userEmail}-${new Date().toISOString().split("T")[0]}.json`;
 
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -87,7 +98,7 @@ export function BackupRecoverySection() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      setTimeout(() => window.URL.revokeObjectURL(url), 2000);
 
       setStatusMessage({
         type: "success",
@@ -95,6 +106,7 @@ export function BackupRecoverySection() {
       });
       setTimeout(() => setStatusMessage(null), 5000);
     } catch (err) {
+      console.error("Backup export failed:", err);
       setStatusMessage({
         type: "error",
         text: err instanceof Error ? err.message : "Backup export failed.",
@@ -141,13 +153,14 @@ export function BackupRecoverySection() {
       setFileError(null);
       const res = await fetch("/api/user/backup/restore", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(fileArchive),
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.message || data.error || "Data restoration failed.");
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data) {
+        throw new Error(data?.error?.message || data?.error || data?.message || "Data restoration failed.");
       }
 
       setRestoreReport(data);
@@ -172,13 +185,14 @@ export function BackupRecoverySection() {
       setStatusMessage(null);
       const res = await fetch("/api/user/backup/snapshots", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ label: newSnapshotLabel.trim() || undefined }),
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.message || data.error || "Failed to create cloud snapshot.");
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data) {
+        throw new Error(data?.error?.message || data?.error || data?.message || "Failed to create cloud snapshot.");
       }
 
       setNewSnapshotLabel("");
@@ -206,11 +220,12 @@ export function BackupRecoverySection() {
       setStatusMessage(null);
       const res = await fetch(`/api/user/backup/snapshots/${point.id}/restore`, {
         method: "POST",
+        credentials: "include",
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.message || data.error || "Failed to restore cloud snapshot.");
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data) {
+        throw new Error(data?.error?.message || data?.error || data?.message || "Failed to restore cloud snapshot.");
       }
 
       setConfirmRestorePoint(null);
@@ -234,7 +249,10 @@ export function BackupRecoverySection() {
   const handleDeleteSnapshot = async (id: string) => {
     if (!confirm("Are you sure you want to remove this cloud restore point?")) return;
     try {
-      const res = await fetch(`/api/user/backup/snapshots/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/user/backup/snapshots/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
       if (res.ok) {
         setSnapshots((prev) => prev.filter((s) => s.id !== id));
       }
