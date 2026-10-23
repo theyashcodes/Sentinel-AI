@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { CyBroAvatar, CYBRO_SKINS, CyBroSkin } from "@/components/cybro/CyBroAvatar";
 import { authClient } from "@/lib/auth-client";
+import { BackupRecoverySection } from "@/components/dashboard/BackupRecoverySection";
 
 export function SettingsView() {
   const { theme, setTheme, resolvedTheme } = useTheme();
@@ -1184,6 +1185,9 @@ export function SettingsView() {
           </button>
         </div>
       </div>
+
+      {/* ── DATA BACKUP & DISASTER RECOVERY ── */}
+      <BackupRecoverySection />
 
       {/* ── 2FA CONFIRMATION MODAL ── */}
       {modal2FAOpen && (

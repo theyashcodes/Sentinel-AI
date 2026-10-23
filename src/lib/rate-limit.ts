@@ -220,3 +220,7 @@ export const authRateLimit = createRateLimit({ requests: 5, window: "1 m", prefi
 
 /** CyBro Agent Orchestration: 15 requests per minute */
 export const cybroRateLimit = createRateLimit({ requests: 15, window: "1 m", prefix: "sentinel:cybro" });
+
+/** Data Backup & Disaster Recovery: 10 requests per 5 minutes */
+export const backupRateLimit = createRateLimit({ requests: 10, window: "5 m", prefix: "sentinel:backup" });
+
