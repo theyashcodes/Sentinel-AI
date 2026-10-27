@@ -91,10 +91,10 @@ export class QRRiskEngine {
         });
         indicators.push(`Brand spoofing: claims ${parsed.brandAudit.targetBrand} on untrusted host ${parsed.domainInfo.registrableDomain}`);
       } else if (parsed.brandAudit.brandLocation === "userinfo") {
-        brandScore = 20;
+        brandScore = 25;
         evidenceList.push({
           dimension: "Brand Impersonation",
-          pointsAwarded: 20,
+          pointsAwarded: 25,
           maxPoints: 25,
           title: "Authority User-Info Brand Lure",
           description: `URL authority injects "${parsed.brandAudit.targetBrand}" in username/password field to visually disguise the actual host.`,
@@ -347,22 +347,27 @@ export class QRRiskEngine {
       });
       indicators.push(`SSRF Block: prohibited destination (${parsed.hostname})`);
     } else if (parsed.hasUserInfo) {
-      structureScore = 12;
+      const isDeceptiveUserInfo = parsed.brandAudit.isImpersonating && parsed.brandAudit.brandLocation === "userinfo";
+      structureScore = isDeceptiveUserInfo ? 15 : 12;
       evidenceList.push({
         dimension: "Structure & SSRF Defense",
-        pointsAwarded: 12,
+        pointsAwarded: structureScore,
         maxPoints: 15,
-        title: "User-Info Authority Abuse",
-        description: `URL contains credentials or deceptive user-info (${parsed.userInfoString}@) in the authority section.`,
-        severity: "high",
+        title: isDeceptiveUserInfo ? "Deceptive User-Info Authority Masking" : "User-Info Authority Pattern",
+        description: isDeceptiveUserInfo
+          ? `URL authority injects deceptive credentials (${parsed.userInfoString}@) to visually mask actual destination server "${parsed.hostname}".`
+          : `URL contains credentials or user-info (${parsed.userInfoString}@) in the authority section.`,
+        severity: isDeceptiveUserInfo ? "high" : "medium",
       });
       warnings.push({
         code: "USERINFO_IN_URL",
-        title: "User-Info Authority Pattern",
-        description: "The @ symbol in the URL authority section is used to confuse human readers about the actual host.",
-        severity: "high",
+        title: isDeceptiveUserInfo ? "Deceptive User-Info Authority Masking" : "User-Info Authority Pattern",
+        description: isDeceptiveUserInfo
+          ? `The @ symbol in the URL authority section is used to disguise actual destination server ${parsed.hostname}.`
+          : "The @ symbol in the URL authority section is used to pass credentials or user-info.",
+        severity: isDeceptiveUserInfo ? "high" : "medium",
       });
-      indicators.push("Deceptive user-info @ authority notation detected");
+      indicators.push(isDeceptiveUserInfo ? "Deceptive user-info @ authority notation detected" : "Authority user-info notation detected");
     } else if (parsed.domainInfo.isIpAddress) {
       structureScore = 10;
       evidenceList.push({

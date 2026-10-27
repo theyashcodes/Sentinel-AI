@@ -183,6 +183,7 @@ async function runAllTests() {
     assert.equal(norm.hasUserInfo, true);
     assert.equal(norm.userInfo, "google.com");
     assert.ok(norm.explanation?.includes("user-info"));
+    assert.ok(norm.explanation?.includes("evil.example.org"));
 
     const evalRes = QRSecurityChecker.evaluateSecurity(norm.normalized);
     assert.equal(evalRes.parsed.hasUserInfo, true);
@@ -190,8 +191,25 @@ async function runAllTests() {
     assert.equal(evalRes.parsed.brandAudit.targetBrand, "Google");
     assert.equal(evalRes.parsed.brandAudit.brandLocation, "userinfo");
 
-    assert.ok(evalRes.riskResult.riskScore >= 40);
+    // Calibrated score: 25 (Brand Impersonation) + 15 (Deceptive Authority Masking) = 40 (SUSPICIOUS)
+    assert.equal(evalRes.riskResult.riskScore, 40, `Expected score 40, got: ${evalRes.riskResult.riskScore}`);
     assert.equal(evalRes.riskResult.threatLevel, "SUSPICIOUS");
+    assert.equal(evalRes.riskResult.scoreBreakdown.brandImpersonationScore, 25);
+    assert.equal(evalRes.riskResult.scoreBreakdown.urlStructureScore, 15);
+
+    // Both user-info deception warnings present with HIGH severity
+    const warnings = evalRes.riskResult.warnings;
+    const brandWarn = warnings.find((w) => w.code === "BRAND_MASQUERADE_USERINFO");
+    const structWarn = warnings.find((w) => w.code === "USERINFO_IN_URL");
+    assert.ok(brandWarn, "Must contain BRAND_MASQUERADE_USERINFO warning");
+    assert.equal(brandWarn?.severity, "high");
+    assert.ok(structWarn, "Must contain USERINFO_IN_URL warning");
+    assert.equal(structWarn?.severity, "high");
+
+    // Canonical verdict consistency
+    assert.ok(evalRes.riskResult.reasoning.includes("Google"));
+    assert.ok(evalRes.riskResult.reasoning.includes("example.org"));
+    assert.ok(evalRes.riskResult.reasoning.includes("Suspicious Brand Impersonation"));
   });
 
   // Test URL 7: https://apple.com-login-verification.example.com
@@ -509,6 +527,102 @@ async function runAllTests() {
     };
     const audit = EvidenceGatherer.evaluateSecurityHeaders(httpHeaders, false);
     assert.equal(audit.strictTransportSecurity.status, "FAIL");
+  });
+
+  // =========================================================================
+  // SECTION 6: User-Info Injection Variants & Authority Masking Regression Tests
+  // =========================================================================
+  await runTest("6.1 User-Info with Password Component (https://paypal.com:secret-password@attacker.example.com)", () => {
+    const url = "https://paypal.com:secret-password@attacker.example.com";
+    const norm = UrlNormalizer.normalize(url);
+    assert.equal(norm.hostname, "attacker.example.com");
+    assert.equal(norm.domain, "example.com");
+    assert.equal(norm.hasUserInfo, true);
+    assert.equal(norm.userInfo, "paypal.com:secret-password");
+    assert.ok(norm.explanation?.includes("attacker.example.com"));
+
+    const evalRes = QRSecurityChecker.evaluateSecurity(norm.normalized);
+    assert.equal(evalRes.parsed.hasUserInfo, true);
+    assert.equal(evalRes.parsed.brandAudit.isImpersonating, true);
+    assert.equal(evalRes.parsed.brandAudit.targetBrand, "PayPal");
+    assert.equal(evalRes.parsed.brandAudit.brandLocation, "userinfo");
+
+    // Exact score consistency: 25 (Brand Impersonation) + 15 (Deceptive Authority) = 40 (SUSPICIOUS)
+    assert.equal(evalRes.riskResult.riskScore, 40);
+    assert.equal(evalRes.riskResult.threatLevel, "SUSPICIOUS");
+    assert.ok(evalRes.riskResult.reasoning.includes("PayPal"));
+    assert.ok(evalRes.riskResult.reasoning.includes("example.com"));
+  });
+
+  await runTest("6.2 User-Info with Non-Standard Port (https://microsoft.com@sub.evil.org:8080/path)", () => {
+    const url = "https://microsoft.com@sub.evil.org:8080/path";
+    const norm = UrlNormalizer.normalize(url);
+    assert.equal(norm.hostname, "sub.evil.org");
+    assert.equal(norm.port, "8080");
+
+    const evalRes = QRSecurityChecker.evaluateSecurity(norm.normalized);
+    assert.equal(evalRes.parsed.brandAudit.isImpersonating, true);
+    assert.equal(evalRes.parsed.brandAudit.targetBrand, "Microsoft");
+    assert.equal(evalRes.parsed.brandAudit.brandLocation, "userinfo");
+    assert.equal(evalRes.parsed.port, "8080");
+
+    // Brand (25) + Deceptive UserInfo (15) = 40 (SUSPICIOUS)
+    assert.ok(evalRes.riskResult.riskScore >= 40);
+    assert.equal(evalRes.riskResult.threatLevel, "SUSPICIOUS");
+  });
+
+  await runTest("6.3 User-Info Brand Spoof with Cleartext HTTP & Credential Lure (http://apple.com@phishing-target.net/signin)", () => {
+    const url = "http://apple.com@phishing-target.net/signin";
+    const norm = UrlNormalizer.normalize(url);
+    assert.equal(norm.hostname, "phishing-target.net");
+    assert.equal(norm.protocol, "http");
+
+    const evalRes = QRSecurityChecker.evaluateSecurity(norm.normalized);
+    assert.equal(evalRes.parsed.brandAudit.isImpersonating, true);
+    assert.equal(evalRes.parsed.brandAudit.targetBrand, "Apple");
+
+    // Compounded threat: Brand (25) + UserInfo (15) + HTTP (6) + Lure (2) = 48 (higher SUSPICIOUS)
+    assert.ok(
+      evalRes.riskResult.riskScore > 40,
+      `Compounded threat with cleartext HTTP and lure must score > 40, got: ${evalRes.riskResult.riskScore}`
+    );
+    assert.equal(evalRes.riskResult.threatLevel, "SUSPICIOUS");
+  });
+
+  await runTest("6.4 Benign User-Info Credentials on Third-Party Domain (https://service-user:api-key-123@api.legitimate-partner.com/v1/data)", () => {
+    const url = "https://service-user:api-key-123@api.legitimate-partner.com/v1/data";
+    const norm = UrlNormalizer.normalize(url);
+    assert.equal(norm.hostname, "api.legitimate-partner.com");
+    assert.equal(norm.hasUserInfo, true);
+    assert.equal(norm.userInfo, "service-user:api-key-123");
+
+    const evalRes = QRSecurityChecker.evaluateSecurity(norm.normalized);
+    // Not impersonating any catalog brand
+    assert.equal(evalRes.parsed.brandAudit.isImpersonating, false);
+
+    // Standard user-info warning severity must be MEDIUM, not HIGH
+    const userinfoWarn = evalRes.riskResult.warnings.find((w) => w.code === "USERINFO_IN_URL");
+    assert.ok(userinfoWarn, "Must have USERINFO_IN_URL warning");
+    assert.equal(userinfoWarn?.severity, "medium", "Benign credentials must not be rated HIGH severity");
+
+    // Must NOT be labeled as SUSPICIOUS or brand impersonation
+    assert.ok(evalRes.riskResult.riskScore < 20, `Benign credentials should score < 20, got: ${evalRes.riskResult.riskScore}`);
+    assert.equal(evalRes.riskResult.threatLevel, "SAFE");
+  });
+
+  await runTest("6.5 Authentic Platform with User-Info (https://git@github.com/theyashcodes/Sentinel-AI)", () => {
+    const url = "https://git@github.com/theyashcodes/Sentinel-AI";
+    const norm = UrlNormalizer.normalize(url);
+    assert.equal(norm.hostname, "github.com");
+    assert.equal(norm.domain, "github.com");
+
+    const evalRes = QRSecurityChecker.evaluateSecurity(norm.normalized);
+    assert.equal(evalRes.parsed.brandAudit.isImpersonating, false);
+
+    // Authentic platform guard ensures safe operational status
+    assert.ok(evalRes.riskResult.riskScore <= 10, `Authentic platform must score <= 10, got: ${evalRes.riskResult.riskScore}`);
+    assert.equal(evalRes.riskResult.threatLevel, "SAFE");
+    assert.ok(evalRes.riskResult.reasoning.includes("Verified Clean"));
   });
 
   // =========================================================================
