@@ -37,6 +37,33 @@ export interface URLEvidence {
   networkRedirectStatus?: "NOT_TESTED" | "VERIFIED_HTTP_CHAIN" | "BLOCKED_SSRF" | "FAILED";
 }
 
+export interface DnsResolverInterface {
+  resolve4?: (hostname: string) => Promise<string[]>;
+  resolve6?: (hostname: string) => Promise<string[]>;
+  resolveMx?: (hostname: string) => Promise<any[]>;
+  resolveTxt?: (hostname: string) => Promise<any[]>;
+}
+
+export interface GatherOptions {
+  customDnsResolver?: DnsResolverInterface;
+  timeoutMs?: number;
+  simulateSocketRemoteAddress?: string;
+}
+
+export interface ValidatedDestination {
+  hostname: string;
+  unbracketedHost: string;
+  isIpLiteral: boolean;
+  approvedIps: string[];
+  pinnedRecords: Array<{ address: string; family: 4 | 6 }>;
+  dns?: {
+    a: string[];
+    aaaa: string[];
+    mx: any[];
+    txt: any[];
+  } | null;
+}
+
 export class EvidenceGatherer {
   /**
    * Evaluates HTTP security response headers deterministically.
@@ -170,73 +197,151 @@ export class EvidenceGatherer {
   }
 
   /**
-   * Performs outbound evidence collection with strict SSRF controls,
-   * DNS pre-resolution checks, redirect loop limits, and response truncation.
+   * Resolves and validates all destination IP addresses before connecting.
+   * Defends against DNS rebinding, private/loopback/link-local/metadata SSRF attacks,
+   * alternate IP encodings, and empty/failed DNS lookups.
    */
-  static async gather(normalizedUrl: string, hostname: string): Promise<URLEvidence> {
+  static async resolveAndValidateDestination(
+    rawHostname: string,
+    resolver?: DnsResolverInterface
+  ): Promise<ValidatedDestination> {
+    const cleanHost = rawHostname.trim().toLowerCase().replace(/^\.+|\.+$/g, "");
+    const unbracketedHost = cleanHost.replace(/^\[|\]$/g, "");
+
+    // 1. Check if hostname is an IP literal
+    const ipVersion = net.isIP(unbracketedHost);
+    if (ipVersion !== 0) {
+      if (URLSecurityAnalyzer.isPrivateOrLoopbackIp(unbracketedHost)) {
+        throw new Error(`SSRF blocked prohibited destination: ${unbracketedHost}`);
+      }
+      return {
+        hostname: cleanHost,
+        unbracketedHost,
+        isIpLiteral: true,
+        approvedIps: [unbracketedHost],
+        pinnedRecords: [{ address: unbracketedHost, family: ipVersion as 4 | 6 }],
+        dns: null,
+      };
+    }
+
+    // 2. Reject internal/localhost named domains immediately
+    if (URLSecurityAnalyzer.isPrivateOrLoopbackIp(unbracketedHost)) {
+      throw new Error(`SSRF blocked prohibited destination: ${unbracketedHost}`);
+    }
+
+    // 3. Resolve all A and AAAA records using custom resolver or system resolver
+    const r4 = resolver?.resolve4 ? resolver.resolve4(unbracketedHost) : dns.resolve4(unbracketedHost);
+    const r6 = resolver?.resolve6 ? resolver.resolve6(unbracketedHost) : dns.resolve6(unbracketedHost);
+    const [aResult, aaaaResult] = await Promise.allSettled([r4, r6]);
+
+    const resolvedA = aResult.status === "fulfilled" && Array.isArray(aResult.value) ? aResult.value : [];
+    const resolvedAaaa = aaaaResult.status === "fulfilled" && Array.isArray(aaaaResult.value) ? aaaaResult.value : [];
+    const allIps = [...resolvedA, ...resolvedAaaa];
+
+    // 4. Handle DNS resolution failures or empty responses safely
+    if (allIps.length === 0) {
+      if (aResult.status === "rejected" && aaaaResult.status === "rejected") {
+        const reason =
+          (aResult.reason as any)?.message ||
+          (aaaaResult.reason as any)?.message ||
+          "DNS resolution failed";
+        throw new Error(`DNS resolution failed for ${unbracketedHost}: ${reason}`);
+      }
+      throw new Error(`DNS resolution returned no A or AAAA records for ${unbracketedHost}`);
+    }
+
+    // 5. Reject private, loopback, link-local, metadata, multicast, or any prohibited destination
+    for (const ip of allIps) {
+      const cleanIp = ip.trim().replace(/^\[|\]$/g, "");
+      if (URLSecurityAnalyzer.isPrivateOrLoopbackIp(cleanIp)) {
+        throw new Error(`SSRF DNS rebinding blocked destination: ${unbracketedHost} resolved to prohibited IP ${cleanIp}`);
+      }
+    }
+
+    const uniqueIps = Array.from(new Set(allIps));
+    const pinnedRecords = uniqueIps.map((ip) => ({
+      address: ip,
+      family: (net.isIPv6(ip) ? 6 : 4) as 4 | 6,
+    }));
+
+    return {
+      hostname: cleanHost,
+      unbracketedHost,
+      isIpLiteral: false,
+      approvedIps: uniqueIps,
+      pinnedRecords,
+      dns: {
+        a: resolvedA,
+        aaaa: resolvedAaaa,
+        mx: [],
+        txt: [],
+      },
+    };
+  }
+
+  /**
+   * Performs outbound evidence collection with strict SSRF controls,
+   * pinned DNS resolution against rebinding, redirect chain auditing, and response truncation.
+   */
+  static async gather(
+    normalizedUrl: string,
+    hostname: string,
+    options?: GatherOptions
+  ): Promise<URLEvidence> {
     const evidence: URLEvidence = {
       redirects: [],
       networkRedirectStatus: "NOT_TESTED",
       securityHeadersAudit: this.evaluateSecurityHeaders(null, normalizedUrl.startsWith("https")),
     };
 
-    // 0. Static SSRF Safety Pre-check
-    const isDirectPrivate = URLSecurityAnalyzer.isPrivateOrLoopbackIp(hostname);
-    const isLocalhostAlias =
-      hostname === "localhost" ||
-      hostname.endsWith(".localhost") ||
-      hostname.endsWith(".local") ||
-      hostname.endsWith(".internal") ||
-      hostname.endsWith(".lan") ||
-      hostname === "metadata.google.internal";
-
-    if (isDirectPrivate || isLocalhostAlias) {
-      evidence.ssrfProtected = true;
-      evidence.networkRedirectStatus = "BLOCKED_SSRF";
-      evidence.headers = { "x-sentinel-ssrf-block": "Prohibited private or loopback destination. Network scan aborted." };
-      return evidence;
-    }
-
-    // 1. DNS Pre-flight Resolution & Rebinding Check
-    let resolvedA: string[] = [];
-    let resolvedAaaa: string[] = [];
+    // 1. Destination pre-flight resolution & DNS rebinding validation
+    let validation: ValidatedDestination | undefined;
     try {
-      const [a, aaaa, mx, txt] = await Promise.allSettled([
-        dns.resolve4(hostname),
-        dns.resolve6(hostname),
-        dns.resolveMx(hostname),
-        dns.resolveTxt(hostname),
-      ]);
-
-      resolvedA = a.status === "fulfilled" ? a.value : [];
-      resolvedAaaa = aaaa.status === "fulfilled" ? aaaa.value : [];
-
-      // Defend against DNS rebinding to private / loopback IP
-      const allIps = [...resolvedA, ...resolvedAaaa];
-      const hasPrivateIp = allIps.some((ip) => URLSecurityAnalyzer.isPrivateOrLoopbackIp(ip));
-      if (hasPrivateIp) {
+      validation = await this.resolveAndValidateDestination(hostname, options?.customDnsResolver);
+      if (validation.dns) {
+        // Best effort MX and TXT telemetry
+        try {
+          const rMx = options?.customDnsResolver?.resolveMx
+            ? options.customDnsResolver.resolveMx(validation.unbracketedHost)
+            : dns.resolveMx(validation.unbracketedHost);
+          const rTxt = options?.customDnsResolver?.resolveTxt
+            ? options.customDnsResolver.resolveTxt(validation.unbracketedHost)
+            : dns.resolveTxt(validation.unbracketedHost);
+          const [mx, txt] = await Promise.allSettled([rMx, rTxt]);
+          validation.dns.mx = mx.status === "fulfilled" && Array.isArray(mx.value) ? mx.value : [];
+          validation.dns.txt = txt.status === "fulfilled" && Array.isArray(txt.value) ? txt.value : [];
+        } catch {
+          // non-fatal
+        }
+        evidence.dns = validation.dns;
+      }
+    } catch (dnsErr: any) {
+      if (dnsErr.message?.includes("SSRF")) {
         evidence.ssrfProtected = true;
         evidence.networkRedirectStatus = "BLOCKED_SSRF";
-        evidence.headers = { "x-sentinel-ssrf-block": "DNS resolution returned prohibited internal/reserved IP. Network probe blocked." };
+        evidence.headers = {
+          "x-sentinel-ssrf-block":
+            `Prohibited internal or loopback destination. Network probe blocked: ${dnsErr.message}`,
+        };
         return evidence;
       }
-
-      evidence.dns = {
-        a: resolvedA,
-        aaaa: resolvedAaaa,
-        mx: mx.status === "fulfilled" ? mx.value : [],
-        txt: txt.status === "fulfilled" ? txt.value : [],
-      };
-    } catch {
       evidence.dns = null;
     }
 
-    // 2. WHOIS Lookup (Best effort, non-fatal)
+    // 2. WHOIS Lookup (Best effort, non-fatal for valid public domains)
     try {
-      const whoisProvider = whoisRegistry.getProvider();
-      const whoisData = await whoisProvider.lookup(hostname);
-      if (whoisData) {
-        evidence.whois = whoisData as unknown as Record<string, unknown>;
+      const isSynthetic =
+        hostname.endsWith(".test") ||
+        hostname.endsWith(".example") ||
+        hostname.endsWith(".invalid") ||
+        hostname.endsWith(".localhost") ||
+        net.isIP(hostname.replace(/^\[|\]$/g, "")) !== 0;
+      if (!isSynthetic) {
+        const whoisProvider = whoisRegistry.getProvider();
+        const whoisData = await whoisProvider.lookup(hostname);
+        if (whoisData) {
+          evidence.whois = whoisData as unknown as Record<string, unknown>;
+        }
       }
     } catch {
       evidence.whois = null;
@@ -244,16 +349,16 @@ export class EvidenceGatherer {
 
     // 3. Controlled HTTP Inspection with SSRF Guard on Every Hop
     try {
-      await this.fetchHttpEvidence(normalizedUrl, evidence);
+      await this.fetchHttpEvidence(normalizedUrl, evidence, 0, options, validation);
     } catch (err: any) {
-      if (err?.message?.includes("SSRF")) {
+      if (err?.message?.includes("SSRF") || evidence.ssrfProtected) {
         evidence.ssrfProtected = true;
         evidence.networkRedirectStatus = "BLOCKED_SSRF";
         if (!evidence.headers) {
           evidence.headers = {};
         }
         (evidence.headers as Record<string, unknown>)["x-sentinel-ssrf-block"] =
-          err?.message || "Prohibited internal or loopback destination. Network scan aborted.";
+          `Prohibited internal or loopback destination. Network scan aborted: ${err?.message || ""}`;
       } else {
         evidence.networkRedirectStatus = "FAILED";
       }
@@ -269,7 +374,9 @@ export class EvidenceGatherer {
   private static async fetchHttpEvidence(
     url: string,
     evidence: URLEvidence,
-    hopCount = 0
+    hopCount = 0,
+    options?: GatherOptions,
+    preValidation?: ValidatedDestination
   ): Promise<void> {
     if (hopCount > 5) {
       return; // Bounded redirect limit
@@ -290,113 +397,196 @@ export class EvidenceGatherer {
     const host = parsedUrl.hostname.toLowerCase();
     const unbracketedHost = host.replace(/^\[|\]$/g, "");
 
-    // Check direct host for SSRF
-    if (URLSecurityAnalyzer.isPrivateOrLoopbackIp(host)) {
-      evidence.ssrfProtected = true;
-      throw new Error(`SSRF blocked prohibited destination: ${host}`);
+    // Resolve and validate destination for this hop
+    let validation: ValidatedDestination;
+    if (preValidation && preValidation.unbracketedHost.toLowerCase() === unbracketedHost) {
+      validation = preValidation;
+    } else {
+      validation = await this.resolveAndValidateDestination(
+        parsedUrl.hostname,
+        options?.customDnsResolver
+      );
     }
 
-    // DNS pre-resolution for redirect hops to prevent DNS rebinding
-    if (hopCount > 0 && !net.isIP(unbracketedHost)) {
-      try {
-        const [a, aaaa] = await Promise.allSettled([
-          dns.resolve4(host),
-          dns.resolve6(host),
-        ]);
-        const ips = [
-          ...(a.status === "fulfilled" ? a.value : []),
-          ...(aaaa.status === "fulfilled" ? aaaa.value : []),
-        ];
-        if (ips.some((ip) => URLSecurityAnalyzer.isPrivateOrLoopbackIp(ip))) {
-          evidence.ssrfProtected = true;
-          throw new Error(`SSRF DNS rebinding blocked destination: ${host}`);
-        }
-      } catch (dnsErr: any) {
-        if (dnsErr.message?.includes("SSRF")) throw dnsErr;
+    const approvedIpSet = new Set<string>(validation.approvedIps);
+    for (const ip of validation.approvedIps) {
+      if (net.isIPv4(ip)) {
+        approvedIpSet.add(`::ffff:${ip}`);
       }
     }
+
+    // Custom pinned DNS lookup: ensures TCP connection connects ONLY to pre-validated public IPs.
+    // Eliminates DNS time-of-check / time-of-use (TOCTOU) rebinding.
+    const pinnedLookup: any = (lookupHost: string, lookupOpts: any, cb?: any) => {
+      const callback = (typeof lookupOpts === "function" ? lookupOpts : cb) as (
+        err: NodeJS.ErrnoException | null,
+        address?: any,
+        family?: number
+      ) => void;
+      const lookupOptions = (typeof lookupOpts === "object" ? lookupOpts : {}) as {
+        family?: number;
+        hints?: number;
+        all?: boolean;
+      };
+
+      if (lookupHost.toLowerCase() !== validation.unbracketedHost.toLowerCase()) {
+        const err: any = new Error(`SSRF blocked host mismatch in DNS lookup: ${lookupHost}`);
+        err.code = "ENOTFOUND";
+        return callback(err);
+      }
+
+      let candidates = validation.pinnedRecords;
+      if (lookupOptions.family === 4) {
+        const f4 = candidates.filter((c) => c.family === 4);
+        if (f4.length > 0) candidates = f4;
+      } else if (lookupOptions.family === 6) {
+        const f6 = candidates.filter((c) => c.family === 6);
+        if (f6.length > 0) candidates = f6;
+      }
+
+      if (candidates.length === 0 || !candidates[0]) {
+        const err: any = new Error(`No approved IP address available for ${lookupHost}`);
+        err.code = "ENOTFOUND";
+        return callback(err);
+      }
+
+      if (lookupOptions.all) {
+        return callback(null, candidates);
+      }
+
+      const primary = candidates[0];
+      return callback(null, primary.address, primary.family);
+    };
 
     return new Promise((resolve, reject) => {
       const isHttps = parsedUrl.protocol === "https:";
       const client = isHttps ? https : http;
+      const port = parsedUrl.port ? parseInt(parsedUrl.port, 10) : (isHttps ? 443 : 80);
 
       evidence.tls = null;
 
-      const req = client.get(
-        parsedUrl.href,
-        {
-          timeout: 4000,
-          headers: {
-            "User-Agent": "Sentinel-AI-Security-Probe/2.0 (Security Telemetry)",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-          },
+      const requestOptions: https.RequestOptions = {
+        protocol: parsedUrl.protocol,
+        hostname: validation.unbracketedHost,
+        port,
+        path: parsedUrl.pathname + parsedUrl.search,
+        method: "GET",
+        headers: {
+          "Host": parsedUrl.host,
+          "User-Agent": "Sentinel-AI-Security-Probe/2.0 (Security Telemetry)",
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         },
-        (res) => {
-          const status = res.statusCode || 0;
+        timeout: options?.timeoutMs || 4000,
+        servername: isHttps ? validation.unbracketedHost : undefined,
+        lookup: pinnedLookup,
+      };
 
-          if (isHttps) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const cert = (res.socket as any).getPeerCertificate?.();
-            if (cert && cert.subject) {
-              evidence.tls = {
-                subject: cert.subject,
-                issuer: cert.issuer,
-                valid_from: cert.valid_from,
-                valid_to: cert.valid_to,
-              };
-            }
+      const req = client.request(requestOptions, (res) => {
+        const status = res.statusCode || 0;
+
+        if (isHttps) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const cert = (res.socket as any).getPeerCertificate?.();
+          if (cert && cert.subject) {
+            evidence.tls = {
+              subject: cert.subject,
+              issuer: cert.issuer,
+              valid_from: cert.valid_from,
+              valid_to: cert.valid_to,
+            };
+          }
+        }
+
+        // Handle Redirects with identical SSRF validation and socket pinning
+        if (status >= 300 && status < 400 && res.headers.location) {
+          let nextLocation = res.headers.location;
+          if (!nextLocation.startsWith("http://") && !nextLocation.startsWith("https://")) {
+            nextLocation = new URL(nextLocation, parsedUrl.href).href;
           }
 
-          // Handle Redirects
-          if (status >= 300 && status < 400 && res.headers.location) {
-            let nextLocation = res.headers.location;
-            if (!nextLocation.startsWith("http://") && !nextLocation.startsWith("https://")) {
-              nextLocation = new URL(nextLocation, parsedUrl.href).href;
-            }
+          evidence.redirects?.push(nextLocation);
+          evidence.networkRedirectStatus = "VERIFIED_HTTP_CHAIN";
 
-            evidence.redirects?.push(nextLocation);
-            evidence.networkRedirectStatus = "VERIFIED_HTTP_CHAIN";
+          // Drain data and resume
+          res.resume();
 
-            // Drain data and resume
-            res.resume();
+          this.fetchHttpEvidence(nextLocation, evidence, hopCount + 1, options)
+            .then(resolve)
+            .catch(reject);
+          return;
+        }
 
-            this.fetchHttpEvidence(nextLocation, evidence, hopCount + 1)
-              .then(resolve)
-              .catch(reject);
+        // Terminal response reached
+        evidence.finalUrl = parsedUrl.href;
+        evidence.statusCode = status;
+        evidence.headers = res.headers as Record<string, unknown>;
+
+        // Bounded response read (max 512KB) to protect against decompression bombs / memory exhaustion
+        let bytesRead = 0;
+        const maxBytes = 512 * 1024;
+
+        res.on("data", (chunk: Buffer) => {
+          bytesRead += chunk.length;
+          if (bytesRead > maxBytes) {
+            res.destroy();
+            resolve();
+          }
+        });
+
+        res.on("end", () => {
+          resolve();
+        });
+      });
+
+      // Defense-in-depth: Validate connected socket remoteAddress against the approved IP set
+      req.on("socket", (socket: net.Socket) => {
+        const verifySocketAddress = () => {
+          const rawRemote = options?.simulateSocketRemoteAddress || socket.remoteAddress;
+          if (!rawRemote) {
             return;
           }
 
-          // Terminal response reached
-          evidence.finalUrl = parsedUrl.href;
-          evidence.statusCode = status;
-          evidence.headers = res.headers as Record<string, unknown>;
+          const cleanRemote = rawRemote.replace(/^\[|\]$/g, "").replace(/^::ffff:/i, "");
+          const isApproved = approvedIpSet.has(rawRemote) || approvedIpSet.has(cleanRemote);
+          const isProhibited =
+            URLSecurityAnalyzer.isPrivateOrLoopbackIp(rawRemote) ||
+            URLSecurityAnalyzer.isPrivateOrLoopbackIp(cleanRemote);
 
-          // Bounded response read (max 512KB) to protect against decompression bombs / memory exhaustion
-          let bytesRead = 0;
-          const maxBytes = 512 * 1024;
+          if (!isApproved || isProhibited) {
+            evidence.ssrfProtected = true;
+            const rebindingErr = new Error(
+              `SSRF DNS rebinding blocked destination: socket remoteAddress ${rawRemote} is prohibited or not in approved IP set`
+            );
+            socket.destroy(rebindingErr);
+            req.destroy(rebindingErr);
+          }
+        };
 
-          res.on("data", (chunk: Buffer) => {
-            bytesRead += chunk.length;
-            if (bytesRead > maxBytes) {
-              res.destroy();
-              resolve();
-            }
-          });
-
-          res.on("end", () => {
-            resolve();
-          });
+        if (socket.connecting) {
+          socket.once("connect", verifySocketAddress);
+          if (isHttps) {
+            socket.once("secureConnect", verifySocketAddress);
+          }
+        } else {
+          verifySocketAddress();
         }
-      );
+      });
 
-      req.on("error", (err) => {
-        reject(new Error(`Network Error: ${err.message}`));
+      req.on("error", (err: any) => {
+        if (err?.message?.includes("SSRF") || evidence.ssrfProtected) {
+          evidence.ssrfProtected = true;
+          reject(err);
+        } else {
+          reject(new Error(`Network Error: ${err.message}`));
+        }
       });
 
       req.on("timeout", () => {
         req.destroy();
         reject(new Error("Network Error: Connection timed out"));
       });
+
+      req.end();
     });
   }
 }

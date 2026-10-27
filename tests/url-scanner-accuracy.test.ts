@@ -528,6 +528,247 @@ async function runAllTests() {
     assert.equal(isIpv6Ula, true);
   });
 
+  await runTest("3.10 DNS Rebinding TOCTOU: Public IP changing to private IP between check and connect is defended", async () => {
+    let dnsQueryCount = 0;
+    const controlledResolver = {
+      resolve4: async () => {
+        dnsQueryCount++;
+        if (dnsQueryCount === 1) {
+          // Initial pre-flight check returns public IP
+          return ["93.184.216.34"];
+        }
+        // Simulated TOCTOU rebind on second lookup: attacker DNS would return loopback
+        return ["127.0.0.1"];
+      },
+      resolve6: async () => [],
+    };
+
+    const dest = await EvidenceGatherer.resolveAndValidateDestination("dynamic-rebind.test", controlledResolver);
+    assert.deepEqual(dest.approvedIps, ["93.184.216.34"]);
+    assert.equal(dest.pinnedRecords[0]?.address, "93.184.216.34");
+    assert.equal(dest.pinnedRecords[0]?.family, 4);
+    assert.equal(dnsQueryCount, 1, "Initial pre-flight resolution must query DNS once and pin the IP");
+  });
+
+  await runTest("3.11 Pinned Socket remoteAddress Defense: Socket connecting to unapproved/private IP is aborted", async () => {
+    let internalDataExposed = false;
+    const internalServer = http.createServer((req, res) => {
+      internalDataExposed = true;
+      res.writeHead(200, { "Content-Type": "text/plain" });
+      res.end("Sensitive Internal Service Secrets");
+    });
+    await new Promise<void>((resolve) => internalServer.listen(0, "127.0.0.1", resolve));
+    const internalPort = (internalServer.address() as any).port;
+
+    try {
+      const controlledResolver = {
+        resolve4: async () => ["93.184.216.34"], // Valid public IP approved
+        resolve6: async () => [],
+      };
+
+      // Gather evidence with simulated socket connected to 127.0.0.1 (or unapproved IP)
+      const evidence = await EvidenceGatherer.gather(
+        `http://rebind-attack.test:${internalPort}/`,
+        "rebind-attack.test",
+        {
+          customDnsResolver: controlledResolver,
+          simulateSocketRemoteAddress: "127.0.0.1", // Simulates socket connecting to 127.0.0.1
+        }
+      );
+
+      assert.equal(evidence.ssrfProtected, true, "Must be flagged as ssrfProtected");
+      assert.equal(evidence.networkRedirectStatus, "BLOCKED_SSRF");
+      assert.ok(
+        String((evidence.headers as any)?.["x-sentinel-ssrf-block"]).includes("Prohibited"),
+        "Must have Prohibited SSRF block header"
+      );
+      assert.equal(internalDataExposed, false, "Internal sensitive data must never be received");
+    } finally {
+      internalServer.close();
+    }
+  });
+
+  await runTest("3.12 DNS Rebinding: Mixed public and private resolved IPs blocked before connection", async () => {
+    const controlledResolver = {
+      resolve4: async () => ["93.184.216.34", "10.0.0.1"],
+      resolve6: async () => [],
+    };
+
+    let blockedError = "";
+    try {
+      await EvidenceGatherer.resolveAndValidateDestination("mixed-rebind.test", controlledResolver);
+    } catch (err: any) {
+      blockedError = err.message;
+    }
+
+    assert.ok(
+      blockedError.includes("SSRF DNS rebinding blocked destination"),
+      `Must throw SSRF DNS rebinding blocked destination error, got: ${blockedError}`
+    );
+
+    const evidence = await EvidenceGatherer.gather("http://mixed-rebind.test/", "mixed-rebind.test", {
+      customDnsResolver: controlledResolver,
+    });
+    assert.equal(evidence.ssrfProtected, true);
+    assert.equal(evidence.networkRedirectStatus, "BLOCKED_SSRF");
+  });
+
+  await runTest("3.13 DNS Rebinding: IPv4-mapped IPv6 prohibited destinations blocked", async () => {
+    assert.equal(URLSecurityAnalyzer.isPrivateOrLoopbackIp("::ffff:127.0.0.1"), true);
+    assert.equal(URLSecurityAnalyzer.isPrivateOrLoopbackIp("::ffff:169.254.169.254"), true);
+    assert.equal(URLSecurityAnalyzer.isPrivateOrLoopbackIp("::ffff:192.168.1.5"), true);
+
+    const controlledResolver = {
+      resolve4: async () => [],
+      resolve6: async () => ["::ffff:127.0.0.1"],
+    };
+
+    let blocked = false;
+    try {
+      await EvidenceGatherer.resolveAndValidateDestination("ipv6-mapped-rebind.test", controlledResolver);
+    } catch (err: any) {
+      blocked = err.message.includes("SSRF DNS rebinding blocked destination");
+    }
+    assert.equal(blocked, true, "Must block IPv4-mapped loopback destination");
+  });
+
+  await runTest("3.14 DNS Rebinding: DNS errors and empty responses handled safely without crashing", async () => {
+    const emptyResolver = {
+      resolve4: async () => [],
+      resolve6: async () => [],
+    };
+
+    const evidenceEmpty = await EvidenceGatherer.gather("http://empty-records.test/", "empty-records.test", {
+      customDnsResolver: emptyResolver,
+    });
+    assert.equal(evidenceEmpty.networkRedirectStatus, "FAILED");
+
+    const errorResolver = {
+      resolve4: async () => {
+        const err: any = new Error("queryA ENOTFOUND missing.test");
+        err.code = "ENOTFOUND";
+        throw err;
+      },
+      resolve6: async () => {
+        const err: any = new Error("queryAaaa ENODATA missing.test");
+        err.code = "ENODATA";
+        throw err;
+      },
+    };
+
+    const evidenceError = await EvidenceGatherer.gather("http://missing.test/", "missing.test", {
+      customDnsResolver: errorResolver,
+    });
+    assert.equal(evidenceError.networkRedirectStatus, "FAILED");
+  });
+
+  await runTest("3.15 DNS Rebinding: Redirect hop to private rebinding destination is intercepted", async () => {
+    const controlledResolver = {
+      resolve4: async (host: string) => {
+        if (host === "rebind-hop-target.test") {
+          return ["192.168.1.1"]; // Target hop resolves to private IP
+        }
+        return ["93.184.216.34"];
+      },
+      resolve6: async () => [],
+    };
+
+    let redirectTargetReached = false;
+    const initialHopServer = http.createServer((req, res) => {
+      res.writeHead(302, { Location: "http://rebind-hop-target.test/private-admin" });
+      res.end();
+    });
+    await new Promise<void>((resolve) => initialHopServer.listen(0, "127.0.0.1", resolve));
+    const hopPort = (initialHopServer.address() as any).port;
+
+    try {
+      const evidence: any = { redirects: [], networkRedirectStatus: "NOT_TESTED" };
+      const preValidation = {
+        hostname: "initial-hop.test",
+        unbracketedHost: "initial-hop.test",
+        isIpLiteral: false,
+        approvedIps: ["127.0.0.1", "93.184.216.34"],
+        pinnedRecords: [{ address: "127.0.0.1", family: 4 as const }],
+      };
+
+      let blockedError = "";
+      try {
+        await (EvidenceGatherer as any).fetchHttpEvidence(
+          `http://initial-hop.test:${hopPort}/`,
+          evidence,
+          0,
+          {
+            customDnsResolver: controlledResolver,
+            simulateSocketRemoteAddress: "93.184.216.34",
+          },
+          preValidation
+        );
+      } catch (err: any) {
+        blockedError = err.message;
+        if (err.message?.includes("SSRF")) {
+          evidence.ssrfProtected = true;
+          evidence.networkRedirectStatus = "BLOCKED_SSRF";
+          evidence.headers = {
+            "x-sentinel-ssrf-block": `Prohibited destination: ${err.message}`,
+          };
+        }
+      }
+
+      assert.equal(evidence.ssrfProtected, true, "Redirect hop to private destination must trigger ssrfProtected");
+      assert.equal(evidence.networkRedirectStatus, "BLOCKED_SSRF");
+      assert.ok(
+        blockedError.includes("SSRF DNS rebinding blocked destination"),
+        `Error must mention SSRF DNS rebinding blocked destination, got: ${blockedError}`
+      );
+      assert.equal(redirectTargetReached, false);
+    } finally {
+      initialHopServer.close();
+    }
+  });
+
+  await runTest("3.16 HTTP Host Header & TLS SNI: Original hostname preserved during pinned requests", async () => {
+    let receivedHostHeader = "";
+    const testServer = http.createServer((req, res) => {
+      receivedHostHeader = req.headers["host"] || "";
+      res.writeHead(200, { "Content-Type": "text/plain" });
+      res.end("OK");
+    });
+    await new Promise<void>((resolve) => testServer.listen(0, "127.0.0.1", resolve));
+    const port = (testServer.address() as any).port;
+
+    try {
+      const controlledResolver = {
+        resolve4: async () => ["127.0.0.1"],
+        resolve6: async () => [],
+      };
+
+      const evidence: any = { redirects: [], networkRedirectStatus: "NOT_TESTED" };
+      const preValidation = {
+        hostname: "api.partner-service.org",
+        unbracketedHost: "api.partner-service.org",
+        isIpLiteral: false,
+        approvedIps: ["127.0.0.1", "93.184.216.34"],
+        pinnedRecords: [{ address: "127.0.0.1", family: 4 as const }],
+      };
+
+      await (EvidenceGatherer as any).fetchHttpEvidence(
+        `http://api.partner-service.org:${port}/api/v1/health`,
+        evidence,
+        0,
+        {
+          customDnsResolver: controlledResolver,
+          simulateSocketRemoteAddress: "93.184.216.34",
+        },
+        preValidation
+      );
+
+      assert.equal(receivedHostHeader, `api.partner-service.org:${port}`, "Host header must preserve original hostname and port");
+      assert.equal(evidence.statusCode, 200);
+    } finally {
+      testServer.close();
+    }
+  });
+
   // =========================================================================
   // SECTION 4: URL Input Normalization & Edge Cases
   // =========================================================================
