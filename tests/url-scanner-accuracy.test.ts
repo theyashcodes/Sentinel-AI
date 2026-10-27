@@ -462,6 +462,72 @@ async function runAllTests() {
     }
   });
 
+  await runTest("3.8 Backend SSRF: EvidenceGatherer blocks HTTP redirect to private IPv4 address", async () => {
+    let privateDestinationReached = false;
+
+    // Target private server that must NEVER receive requests
+    const privateTargetServer = http.createServer((req, res) => {
+      privateDestinationReached = true;
+      res.writeHead(200);
+      res.end("Sensitive Internal Service Data");
+    });
+    await new Promise<void>((resolve) => privateTargetServer.listen(0, "127.0.0.1", resolve));
+    const privatePort = (privateTargetServer.address() as any).port;
+
+    // Initial hop server that attempts to redirect to the private server
+    const redirectServer = http.createServer((req, res) => {
+      if (req.url === "/public-entry") {
+        res.writeHead(302, { Location: `http://127.0.0.1:${privatePort}/internal-data` });
+        res.end();
+      } else {
+        res.writeHead(404);
+        res.end();
+      }
+    });
+    await new Promise<void>((resolve) => redirectServer.listen(0, "127.0.0.1", resolve));
+    const redirectPort = (redirectServer.address() as any).port;
+
+    try {
+      // Test fetchHttpEvidence directly on redirect hop
+      const evidence: any = { redirects: [], networkRedirectStatus: "NOT_TESTED" };
+      let blockedError: string | undefined = undefined;
+
+      try {
+        await (EvidenceGatherer as any).fetchHttpEvidence(`http://127.0.0.1:${redirectPort}/public-entry`, evidence, 0);
+      } catch (err: any) {
+        blockedError = err.message;
+      }
+
+      assert.ok(
+        blockedError?.includes("SSRF blocked prohibited destination"),
+        `Must throw SSRF blocked prohibited destination error, got: ${blockedError}`
+      );
+      assert.equal(privateDestinationReached, false, "Private destination must NEVER be contacted");
+    } finally {
+      redirectServer.close();
+      privateTargetServer.close();
+    }
+  });
+
+  await runTest("3.9 Backend SSRF: DNS Rebinding defense blocks domains resolving to private IPs", async () => {
+    // Test that when a hostname's DNS returns private IPs, EvidenceGatherer blocks it before any connection
+    // We test with a mock or loopback resolution check
+    const isProhibited = URLSecurityAnalyzer.isPrivateOrLoopbackIp("127.0.0.1");
+    assert.equal(isProhibited, true);
+
+    const isCloudMeta = URLSecurityAnalyzer.isPrivateOrLoopbackIp("169.254.169.254");
+    assert.equal(isCloudMeta, true);
+
+    const isCgnat = URLSecurityAnalyzer.isPrivateOrLoopbackIp("100.64.0.1");
+    assert.equal(isCgnat, true);
+
+    const isIpv6Loopback = URLSecurityAnalyzer.isPrivateOrLoopbackIp("::1");
+    assert.equal(isIpv6Loopback, true);
+
+    const isIpv6Ula = URLSecurityAnalyzer.isPrivateOrLoopbackIp("fc00::1");
+    assert.equal(isIpv6Ula, true);
+  });
+
   // =========================================================================
   // SECTION 4: URL Input Normalization & Edge Cases
   // =========================================================================

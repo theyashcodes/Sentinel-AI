@@ -288,15 +288,16 @@ export class EvidenceGatherer {
     }
 
     const host = parsedUrl.hostname.toLowerCase();
+    const unbracketedHost = host.replace(/^\[|\]$/g, "");
 
     // Check direct host for SSRF
-    if (URLSecurityAnalyzer.isPrivateOrLoopbackIp(host) || host === "localhost" || host.endsWith(".internal")) {
+    if (URLSecurityAnalyzer.isPrivateOrLoopbackIp(host)) {
       evidence.ssrfProtected = true;
       throw new Error(`SSRF blocked prohibited destination: ${host}`);
     }
 
     // DNS pre-resolution for redirect hops to prevent DNS rebinding
-    if (hopCount > 0 && !net.isIP(host)) {
+    if (hopCount > 0 && !net.isIP(unbracketedHost)) {
       try {
         const [a, aaaa] = await Promise.allSettled([
           dns.resolve4(host),
