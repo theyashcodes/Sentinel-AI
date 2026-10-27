@@ -5,21 +5,42 @@ from urllib.parse import urlparse
 # Popular legitimate domains (Top web platforms)
 TOP_LEGIT_DOMAINS = {
     "google.com", "youtube.com", "facebook.com", "amazon.com", "apple.com",
-    "microsoft.com", "wikipedia.org", "twitter.com", "x.com", "instagram.com",
+    "microsoft.com", "microsoftonline.com", "live.com", "office.com", "outlook.com",
+    "wikipedia.org", "twitter.com", "x.com", "instagram.com",
     "linkedin.com", "netflix.com", "github.com", "yahoo.com", "reddit.com",
     "bing.com", "whatsapp.com", "pinterest.com", "cloudflare.com", "adobe.com",
-    "spotify.com", "zoom.us", "dropbox.com", "twitch.tv", "paypal.com",
+    "spotify.com", "zoom.us", "dropbox.com", "twitch.tv", "paypal.com", "paypal.me",
     "ebay.com", "wordpress.org", "medium.com", "stackoverflow.com", "nih.gov",
     "harvard.edu", "mit.edu", "nytimes.com", "cnn.com", "bbc.co.uk", "reuters.com"
 }
 
-# Brands commonly targeted by phishing campaigns
-TARGETED_BRANDS = [
-    "paypal", "apple", "google", "microsoft", "amazon", "netflix",
-    "facebook", "instagram", "whatsapp", "chase", "wellsfargo",
-    "bankofamerica", "citibank", "barclays", "ebay", "dropbox",
-    "outlook", "office365", "steam", "coinbase", "binance"
-]
+# Brands commonly targeted by phishing campaigns with their authentic domains
+BRAND_LEGIT_DOMAINS = {
+    "google": ["google.com", "google.co.in", "google.co.uk", "google.ca", "google.de", "youtube.com", "gmail.com"],
+    "microsoft": ["microsoft.com", "microsoftonline.com", "live.com", "office.com", "outlook.com", "azure.com", "windows.net"],
+    "apple": ["apple.com", "icloud.com"],
+    "paypal": ["paypal.com", "paypal.me"],
+    "amazon": ["amazon.com", "amazon.in", "amazon.co.uk", "amazon.de"],
+    "netflix": ["netflix.com"],
+    "facebook": ["facebook.com", "instagram.com", "whatsapp.com", "meta.com"],
+    "instagram": ["instagram.com", "facebook.com"],
+    "whatsapp": ["whatsapp.com"],
+    "github": ["github.com"],
+    "chase": ["chase.com"],
+    "wellsfargo": ["wellsfargo.com"],
+    "bankofamerica": ["bankofamerica.com", "bofa.com"],
+    "citibank": ["citi.com", "citibank.com"],
+    "barclays": ["barclays.co.uk", "barclays.com"],
+    "ebay": ["ebay.com"],
+    "dropbox": ["dropbox.com"],
+    "outlook": ["outlook.com", "live.com", "microsoft.com", "office.com"],
+    "office365": ["office.com", "office365.com", "microsoft.com"],
+    "steam": ["steampowered.com", "steamcommunity.com"],
+    "coinbase": ["coinbase.com"],
+    "binance": ["binance.com"]
+}
+
+TARGETED_BRANDS = list(BRAND_LEGIT_DOMAINS.keys())
 
 # Sensitive phishing lure terms
 SUSPICIOUS_LURES = [
@@ -162,10 +183,13 @@ def extract_features(raw_url: str) -> list[float]:
 
     # Brand spoofing: brand mentioned in URL but NOT legitimate registered domain of that brand
     is_brand_spoof = 0.0
-    for brand in TARGETED_BRANDS:
+    for brand, legit_domains in BRAND_LEGIT_DOMAINS.items():
         if brand in url_lower:
-            # Check if brand is the actual base domain
-            if not base_domain.startswith(brand + "."):
+            is_legit = any(
+                base_domain == d or base_domain.endswith("." + d) or domain == d or domain.endswith("." + d)
+                for d in legit_domains
+            )
+            if not is_legit:
                 is_brand_spoof = 1.0
                 break
 

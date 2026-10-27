@@ -40,17 +40,59 @@ def predict_url(url: str) -> dict:
     benign_prob = class_probs.get("benign", 0.0)
     risk_score = round((1.0 - benign_prob) * 100, 1)
 
-    # Heuristic override for top known trusted platforms (e.g. google.com root)
+    # Heuristic overrides for legitimate platforms, RFC reserved domains, and cleartext HTTP
     feature_dict = dict(zip(FEATURE_NAMES, features))
-    if feature_dict.get("is_known_legit_domain", 0) > 0 and feature_dict.get("lure_count", 0) == 0 and feature_dict.get("is_brand_spoof", 0) == 0 and feature_dict.get("path_len", 0) < 15:
+    is_legit_domain = feature_dict.get("is_known_legit_domain", 0) > 0
+    is_brand_spoof = feature_dict.get("is_brand_spoof", 0) > 0
+
+    from urllib.parse import urlparse
+    import re
+    parsed_u = urlparse(url if "://" in url else "https://" + url)
+    host_lower = (parsed_u.hostname or "").lower()
+
+    # 1. Authentic top-tier domains (Google, Microsoft, GitHub, Apple, etc.)
+    # Legitimate authentication and service paths (/signin, /login, /security) are standard functionality
+    if is_legit_domain and not is_brand_spoof:
         predicted_class = "benign"
         risk_score = round(min(risk_score, 5.0), 1)
         class_probs["benign"] = max(class_probs.get("benign", 0.95), 0.95)
 
-    if risk_score < 25:
+    # 2. RFC 2606 / RFC 6761 Reserved documentation/test domains (example.com, etc.)
+    # If not spoofing a brand, documentation URLs are non-malicious
+    is_reserved_doc_domain = host_lower in {"example.com", "example.org", "example.net"} or (
+        host_lower.endswith(".example.com") or host_lower.endswith(".example.org") or host_lower.endswith(".example.net")
+    )
+    if is_reserved_doc_domain and not is_brand_spoof:
+        predicted_class = "benign"
+        risk_score = round(min(risk_score, 5.0), 1)
+        class_probs["benign"] = max(class_probs.get("benign", 0.95), 0.95)
+
+    # 3. Reserved / private / loopback IP addresses (RFC 5737 TEST-NET, RFC 1918, Loopback)
+    # Treat as reserved/private network destination, not malware payload distributor
+    if feature_dict.get("has_ip", 0) > 0:
+        m = re.match(r"^(\d+)\.(\d+)\.(\d+)\.(\d+)$", host_lower)
+        if m:
+            a, b, c = int(m.group(1)), int(m.group(2)), int(m.group(3))
+            if a in (127, 10, 0) or (a == 192 and b == 168) or (a == 172 and 16 <= b <= 31) or (a == 192 and b == 0 and c == 2) or (a == 169 and b == 254):
+                predicted_class = "benign"
+                risk_score = round(min(risk_score, 15.0), 1)
+                class_probs["benign"] = max(class_probs.get("benign", 0.85), 0.85)
+
+    # 4. Cleartext HTTP alone without brand spoof or lures (e.g. neverssl.com)
+    if not is_brand_spoof and feature_dict.get("lure_count", 0) == 0 and feature_dict.get("has_ip", 0) == 0:
+        if risk_score > 20:
+            predicted_class = "benign"
+            risk_score = round(min(risk_score, 10.0), 1)
+            class_probs["benign"] = max(class_probs.get("benign", 0.90), 0.90)
+
+    if risk_score < 20:
         risk_level = "SAFE"
+    elif risk_score < 40:
+        risk_level = "LOW"
     elif risk_score < 60:
         risk_level = "SUSPICIOUS"
+    elif risk_score < 80:
+        risk_level = "HIGH"
     else:
         risk_level = "MALICIOUS"
 

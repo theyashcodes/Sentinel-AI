@@ -36,8 +36,8 @@ export interface BrandCatalogEntry {
 export const BRAND_CATALOG: BrandCatalogEntry[] = [
   { brand: "PayPal", legitimateDomains: ["paypal.com", "paypal.me"], keywords: ["paypal"] },
   { brand: "Apple", legitimateDomains: ["apple.com", "icloud.com"], keywords: ["apple", "icloud", "appleid"] },
-  { brand: "Microsoft", legitimateDomains: ["microsoft.com", "live.com", "office.com", "outlook.com", "login.microsoftonline.com"], keywords: ["microsoft", "office365", "onedrive", "outlook"] },
-  { brand: "Google", legitimateDomains: ["google.com", "google.co.in", "google.co.uk", "youtube.com", "gmail.com"], keywords: ["google", "gmail", "youtube"] },
+  { brand: "Microsoft", legitimateDomains: ["microsoft.com", "live.com", "office.com", "outlook.com", "microsoftonline.com", "azure.com", "windows.net"], keywords: ["microsoft", "office365", "onedrive", "outlook"] },
+  { brand: "Google", legitimateDomains: ["google.com", "google.co.in", "google.co.uk", "youtube.com", "gmail.com", "google.ca", "google.de"], keywords: ["google", "gmail", "youtube"] },
   { brand: "Amazon", legitimateDomains: ["amazon.com", "amazon.in", "amazon.co.uk", "aws.amazon.com"], keywords: ["amazon", "primevideo"] },
   { brand: "Netflix", legitimateDomains: ["netflix.com"], keywords: ["netflix"] },
   { brand: "Meta / Facebook", legitimateDomains: ["facebook.com", "instagram.com", "whatsapp.com", "meta.com"], keywords: ["facebook", "instagram", "whatsapp", "meta"] },
@@ -344,44 +344,110 @@ export class URLSecurityAnalyzer {
   }
 
   /**
-   * Evaluates if an IP is within loopback, RFC 1918 private, link-local, or cloud metadata ranges
+   * Evaluates if an IP is within loopback, RFC 1918 private, link-local, carrier-grade NAT,
+   * multicast, broadcast, or reserved/test ranges (RFC 5737, RFC 6890, RFC 2544, RFC 1112).
    */
   static isPrivateOrLoopbackIp(ip: string): boolean {
-    // IPv4 Checks
-    if (net.isIPv4(ip)) {
-      const parts = ip.split(".").map(Number);
-      if (parts.length !== 4) return true;
-      const [a, b] = [parts[0]!, parts[1]!];
+    const cleanIp = ip.trim().replace(/^\[|\]$/g, "");
 
-      // 127.0.0.0/8 (Loopback)
-      if (a === 127) return true;
-      // 0.0.0.0/8 (Current network)
+    // IPv4 Checks
+    if (net.isIPv4(cleanIp)) {
+      const parts = cleanIp.split(".").map(Number);
+      if (parts.length !== 4 || parts.some((p) => isNaN(p) || p < 0 || p > 255)) return true;
+      const [a, b, c, d] = parts as [number, number, number, number];
+
+      // 0.0.0.0/8 (Current network / "this" network)
       if (a === 0) return true;
-      // 10.0.0.0/8 (Private)
+      // 10.0.0.0/8 (RFC 1918 Private)
       if (a === 10) return true;
-      // 172.16.0.0/12 (Private: 172.16 - 172.31)
-      if (a === 172 && b >= 16 && b <= 31) return true;
-      // 192.168.0.0/16 (Private)
-      if (a === 192 && b === 168) return true;
-      // 169.254.0.0/16 (Link-Local & Cloud Metadata: 169.254.169.254)
+      // 100.64.0.0/10 (RFC 6598 Shared Address Space / Carrier-Grade NAT: 100.64.0.0 - 100.127.255.255)
+      if (a === 100 && b >= 64 && b <= 127) return true;
+      // 127.0.0.0/8 (RFC 1122 Loopback)
+      if (a === 127) return true;
+      // 169.254.0.0/16 (RFC 3927 Link-Local & Cloud Metadata e.g. 169.254.169.254)
       if (a === 169 && b === 254) return true;
+      // 172.16.0.0/12 (RFC 1918 Private: 172.16.0.0 - 172.31.255.255)
+      if (a === 172 && b >= 16 && b <= 31) return true;
+      // 192.0.0.0/24 (RFC 6890 IETF Protocol Assignments)
+      if (a === 192 && b === 0 && c === 0) return true;
+      // 192.0.2.0/24 (RFC 5737 TEST-NET-1 for documentation/examples)
+      if (a === 192 && b === 0 && c === 2) return true;
+      // 192.88.99.0/24 (RFC 7526 6to4 relay anycast)
+      if (a === 192 && b === 88 && c === 99) return true;
+      // 192.168.0.0/16 (RFC 1918 Private)
+      if (a === 192 && b === 168) return true;
+      // 198.18.0.0/15 (RFC 2544 Benchmarking: 198.18.0.0 - 198.19.255.255)
+      if (a === 198 && (b === 18 || b === 19)) return true;
+      // 198.51.100.0/24 (RFC 5737 TEST-NET-2)
+      if (a === 198 && b === 51 && c === 100) return true;
+      // 203.0.113.0/24 (RFC 5737 TEST-NET-3)
+      if (a === 203 && b === 0 && c === 113) return true;
+      // 224.0.0.0/4 (RFC 5771 Multicast: 224.0.0.0 - 239.255.255.255)
+      if (a >= 224 && a <= 239) return true;
+      // 240.0.0.0/4 (RFC 1112 Reserved for future use & 255.255.255.255 Broadcast)
+      if (a >= 240) return true;
 
       return false;
     }
 
     // IPv6 Checks
-    if (net.isIPv6(ip)) {
-      const cleanIpv6 = ip.toLowerCase();
-      // Loopback ::1
-      if (cleanIpv6 === "::1" || cleanIpv6 === "0:0:0:0:0:0:0:1") return true;
-      // Unique Local Addresses (fc00::/7)
-      if (cleanIpv6.startsWith("fc") || cleanIpv6.startsWith("fd")) return true;
-      // Link-Local (fe80::/10)
-      if (cleanIpv6.startsWith("fe8") || cleanIpv6.startsWith("fe9") || cleanIpv6.startsWith("fea") || cleanIpv6.startsWith("feb")) return true;
+    if (net.isIPv6(cleanIp)) {
+      const lower = cleanIp.toLowerCase();
+
+      // Loopback ::1 and unspecified ::
+      if (lower === "::1" || lower === "::" || lower === "0:0:0:0:0:0:0:1" || lower === "0:0:0:0:0:0:0:0") return true;
+
+      // IPv4-mapped IPv6 address (::ffff:x.x.x.x)
+      if (lower.startsWith("::ffff:") || lower.startsWith("0:0:0:0:0:ffff:")) {
+        const ipv4Part = lower.split(":").pop();
+        if (ipv4Part && net.isIPv4(ipv4Part)) {
+          return this.isPrivateOrLoopbackIp(ipv4Part);
+        }
+        return true;
+      }
+
+      // Unique Local Addresses (fc00::/7 -> fc00:: to fdff::)
+      if (lower.startsWith("fc") || lower.startsWith("fd")) return true;
+
+      // Link-Local (fe80::/10 -> fe80:: to febf::)
+      if (lower.startsWith("fe8") || lower.startsWith("fe9") || lower.startsWith("fea") || lower.startsWith("feb")) return true;
+
+      // Documentation (2001:db8::/32)
+      if (lower.startsWith("2001:db8:") || lower.startsWith("2001:0db8:")) return true;
+
+      // Multicast (ff00::/8)
+      if (lower.startsWith("ff")) return true;
+
+      // Discard prefix (100::/64)
+      if (lower.startsWith("100:")) return true;
 
       return false;
     }
 
+    return false;
+  }
+
+  /**
+   * Distinguishes reserved test/documentation IPs (RFC 5737, RFC 3849) from hostile destinations
+   */
+  static isReservedDocumentationIp(ip: string): boolean {
+    const cleanIp = ip.trim().replace(/^\[|\]$/g, "");
+    if (net.isIPv4(cleanIp)) {
+      const parts = cleanIp.split(".").map(Number);
+      if (parts.length === 4) {
+        const [a, b, c] = parts;
+        // 192.0.2.0/24 (TEST-NET-1)
+        if (a === 192 && b === 0 && c === 2) return true;
+        // 198.51.100.0/24 (TEST-NET-2)
+        if (a === 198 && b === 51 && c === 100) return true;
+        // 203.0.113.0/24 (TEST-NET-3)
+        if (a === 203 && b === 0 && c === 113) return true;
+      }
+    }
+    if (net.isIPv6(cleanIp)) {
+      const lower = cleanIp.toLowerCase();
+      if (lower.startsWith("2001:db8:") || lower.startsWith("2001:0db8:")) return true;
+    }
     return false;
   }
 

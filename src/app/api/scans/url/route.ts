@@ -3,6 +3,8 @@ import { URLScanRequestSchema, UrlNormalizer } from "@/lib/scanner/url/normalize
 import { EvidenceGatherer } from "@/lib/scanner/url/gatherer";
 import { MLInferenceService, SentinelScanVerdict } from "@/lib/ml/client";
 import { QRSecurityChecker } from "@/modules/scanner/qr/services/security-checker";
+import { URLSecurityAnalyzer } from "@/modules/scanner/qr/services/url-security";
+import { evaluateCanonicalRisk } from "@/lib/scanner/url/risk-evaluator";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import crypto from "crypto";
@@ -87,47 +89,68 @@ export async function POST(req: NextRequest) {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // 4. Synthesize Engine Signals with ML Classification
+    // 4. Canonical Risk Synthesis & Verdict Generation
     // ─────────────────────────────────────────────────────────────
-    let finalRiskLevel = riskResult.threatLevel;
-    let finalRiskScore = riskResult.riskScore;
-    const finalConfidence = riskResult.confidence;
-    const finalConfidenceType = riskResult.confidenceType;
-    const finalConfidenceLabel = riskResult.confidenceLabel;
-    let finalThreatType = riskResult.threatType;
+    const isAuthenticPlatform =
+      !parsed.brandAudit.isImpersonating &&
+      (parsed.domainInfo.registrableDomain === "google.com" ||
+        parsed.domainInfo.registrableDomain === "microsoft.com" ||
+        parsed.domainInfo.registrableDomain === "microsoftonline.com" ||
+        parsed.domainInfo.registrableDomain === "github.com" ||
+        parsed.domainInfo.registrableDomain === "apple.com" ||
+        parsed.domainInfo.registrableDomain === "amazon.com" ||
+        parsed.domainInfo.registrableDomain === "paypal.com");
 
-    if (mlVerdict) {
-      if (mlVerdict.riskScore > finalRiskScore) {
-        finalRiskScore = mlVerdict.riskScore;
-      }
+    const isReservedDocDomain =
+      parsed.hostname === "example.com" ||
+      parsed.hostname.endsWith(".example.com") ||
+      parsed.hostname === "example.org" ||
+      parsed.hostname.endsWith(".example.org") ||
+      parsed.hostname === "example.net" ||
+      parsed.hostname.endsWith(".example.net");
 
-      if (mlVerdict.riskLevel === RiskLevel.CRITICAL && finalRiskLevel !== "CRITICAL") {
-        finalRiskLevel = "CRITICAL";
-        finalThreatType = mlVerdict.threatType;
-      } else if (mlVerdict.riskLevel === RiskLevel.HIGH && (finalRiskLevel === "SAFE" || finalRiskLevel === "LOW" || finalRiskLevel === "SUSPICIOUS")) {
-        finalRiskLevel = "HIGH";
-        finalThreatType = mlVerdict.threatType;
-      } else if (mlVerdict.riskLevel === RiskLevel.MEDIUM && (finalRiskLevel === "SAFE" || finalRiskLevel === "LOW")) {
-        finalRiskLevel = "SUSPICIOUS";
-        if (finalThreatType === "BENIGN" || finalThreatType === "SAFE") {
-          finalThreatType = mlVerdict.threatType;
-        }
-      }
+    const isReservedDocIp = URLSecurityAnalyzer.isReservedDocumentationIp(parsed.hostname);
 
-      if (mlVerdict.indicators) {
-        for (const ind of mlVerdict.indicators) {
-          if (!riskResult.indicators.includes(ind)) {
-            riskResult.indicators.push(ind);
-          }
-        }
+    // Initial composite score candidate
+    let compositeScore = riskResult.riskScore;
+    if (mlVerdict && mlVerdict.riskScore > compositeScore) {
+      // Do not allow raw ML lure score to override authentic platforms or reserved documentation targets
+      if (!isAuthenticPlatform && !isReservedDocDomain) {
+        compositeScore = mlVerdict.riskScore;
       }
     }
 
+    const topEvidence = riskResult.signalEvidence
+      .filter((e) => e.pointsAwarded > 0)
+      .sort((a, b) => b.pointsAwarded - a.pointsAwarded)[0];
+
+    const canonicalAssessment = evaluateCanonicalRisk({
+      rawScore: compositeScore,
+      threatCategory: mlVerdict && mlVerdict.threatType !== "SAFE" ? mlVerdict.threatType : riskResult.threatType,
+      isAuthenticPlatform,
+      isReservedDocDomain,
+      isReservedDocIp,
+      isSsrfTarget: parsed.ssrfTarget,
+      brandAudit: parsed.brandAudit,
+      hasUserInfo: parsed.hasUserInfo,
+      userInfoString: parsed.userInfoString,
+      actualHostname: parsed.hostname,
+      isHttp: parsed.protocol === "http",
+      indicators: riskResult.indicators,
+      primaryDriver: topEvidence?.title || (mlVerdict && mlVerdict.riskScore >= 60 ? mlVerdict.reasoning : undefined),
+    });
+
+    const finalRiskScore = canonicalAssessment.riskScore;
+    const finalRiskLevel = canonicalAssessment.riskLevel;
+    const finalThreatType = canonicalAssessment.threatType;
+    const finalReasoning = canonicalAssessment.verdict;
+    const authenticityScore = canonicalAssessment.authenticityScore;
+
+    // Signal Attribution breakdown
     const scoreBreakdown = {
       ...riskResult.scoreBreakdown,
       totalRiskScore: finalRiskScore,
     };
-    const authenticityScore = Math.max(0, 100 - finalRiskScore);
 
     // ─────────────────────────────────────────────────────────────
     // 5. Map Threat Level to Prisma RiskLevel Enum
@@ -167,9 +190,9 @@ export async function POST(req: NextRequest) {
           data: {
             scanId: newScan.id,
             aiProvider: "SENTINEL_URL_SECURITY_CORE",
-            aiModel: "PSL-WeightedRisk-v2",
+            aiModel: "CanonicalRisk-v2",
             inferenceTimeMs: 12,
-            confidenceScore: finalConfidence,
+            confidenceScore: riskResult.confidence,
             threatCategory: finalThreatType,
             analysisMetadata: {
               riskScore: finalRiskScore,
@@ -191,30 +214,37 @@ export async function POST(req: NextRequest) {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // 7. Return Explainable Structured Response
+    // 7. Return Consistent Explainable Structured Response
     // ─────────────────────────────────────────────────────────────
-    let cleanReasoning = riskResult.reasoning.replace(/\(\d+\/100 Risk Score\)/g, `(${finalRiskScore}/100 Risk Score)`);
-
-    const reasoningText = (mlVerdict && mlVerdict.threatType !== "SAFE" && mlVerdict.reasoning)
-      ? `${mlVerdict.reasoning} ${cleanReasoning}`.trim()
-      : cleanReasoning;
-
     return NextResponse.json({
       scanId,
       normalized: normalized.normalized,
+      parsedHostname: normalized.hostname,
+      displayHostname: normalized.displayHostname,
+      domain: normalized.domain,
+      subdomain: normalized.subdomain,
+      hasUserInfo: normalized.hasUserInfo,
+      userInfo: normalized.userInfo,
+      explanation: normalized.explanation,
       riskScore: finalRiskScore,
       authenticityScore,
       riskLevel: finalRiskLevel,
-      confidence: finalConfidence,
-      confidenceType: finalConfidenceType,
-      confidenceLabel: finalConfidenceLabel,
+      confidence: riskResult.confidence,
+      confidenceType: riskResult.confidenceType,
+      confidenceLabel: riskResult.confidenceLabel,
       threatType: finalThreatType,
-      reasoning: reasoningText,
-      indicators: riskResult.indicators,
-      report: `${reasoningText} | Engine: Sentinel Multi-Vector Risk Classifier${evidenceNetworkNotes ? ` | ${evidenceNetworkNotes}` : ""}`,
+      reasoning: finalReasoning,
+      verdict: finalReasoning,
+      reasons: canonicalAssessment.reasons,
+      indicators: canonicalAssessment.reasons,
+      report: `${finalReasoning} | Engine: Sentinel Multi-Vector Risk Classifier${evidenceNetworkNotes ? ` | ${evidenceNetworkNotes}` : ""}`,
       scoreBreakdown,
       signalEvidence: riskResult.signalEvidence,
-      securityChecks,
+      securityChecks: {
+        ...securityChecks,
+        networkRedirectStatus: (evidence as any)?.networkRedirectStatus || securityChecks.networkRedirectStatus,
+        securityHeadersAudit: (evidence as any)?.securityHeadersAudit,
+      },
       evidence,
       mlProbability: mlVerdict?.probabilities,
     });

@@ -5,7 +5,8 @@ import {
   ParsedUrlDetails,
   URLSecurityAnalyzer,
   HOMOGLYPH_MAP,
-  HIGH_ABUSE_TLDS
+  HIGH_ABUSE_TLDS,
+  isReservedSyntheticDestination,
 } from "./url-security";
 import {
   ScoreBreakdown,
@@ -13,6 +14,7 @@ import {
   ThreatClassification,
   QRScanWarning
 } from "../types/qr-scanner";
+import { evaluateCanonicalRisk } from "@/lib/scanner/url/risk-evaluator";
 
 // Centralized Configurable Threat Classification Policy
 export const RISK_THRESHOLDS = {
@@ -41,8 +43,9 @@ export interface RiskEvaluationResult {
 // Known Safe Top-Tier Platforms (for reputation dampener only, never blind pass)
 const VERIFIED_TOP_TIER_PLATFORMS = new Set([
   "google.com", "google.co.in", "google.co.uk", "youtube.com",
-  "github.com", "microsoft.com", "apple.com", "wikipedia.org",
-  "cloudflare.com", "amazon.com", "amazon.in"
+  "github.com", "microsoft.com", "microsoftonline.com", "live.com", "office.com", "outlook.com",
+  "apple.com", "wikipedia.org", "cloudflare.com", "amazon.com", "amazon.in",
+  "paypal.com", "paypal.me", "linkedin.com"
 ]);
 
 // Credential-harvesting keywords
@@ -239,11 +242,11 @@ export class QRRiskEngine {
       const isAuthEndpoint = /oauth|authorize|login|signin|auth/i.test(parsed.pathname);
       const isSuspiciousHost = /evil|tracker|hack|phish|steal|token/i.test(candidateHost);
 
-      let penalty = 12;
+      let penalty = 8;
       if (isCandidateHighAbuse || isSuspiciousHost) {
         penalty = 18;
-      } else if (isHttpTarget || isAuthEndpoint) {
-        penalty = 15;
+      } else if (isHttpTarget) {
+        penalty = 12;
       }
       redirectScore = penalty;
 
@@ -497,8 +500,9 @@ export class QRRiskEngine {
     const lowerPathAndQuery = (parsed.pathname + parsed.search).toLowerCase();
     const matchedLures = CREDENTIAL_LURES.filter((l) => lowerPathAndQuery.includes(l));
 
-    // Only penalize credential lures if the domain is NOT a top-tier verified platform
-    if (matchedLures.length > 0 && !isVerifiedPlatform) {
+    // Only penalize credential lures if the domain is NOT a top-tier verified platform and NOT a non-impersonating RFC 2606 reserved doc domain
+    const isReservedDocDomain = isReservedSyntheticDestination(parsed.hostname) && !parsed.brandAudit.isImpersonating;
+    if (matchedLures.length > 0 && !isVerifiedPlatform && !isReservedDocDomain) {
       lureScore = Math.min(5, matchedLures.length * 2);
       evidenceList.push({
         dimension: "Contextual Lures",
@@ -514,8 +518,10 @@ export class QRRiskEngine {
         dimension: "Contextual Lures",
         pointsAwarded: 0,
         maxPoints: 5,
-        title: "Clean Contextual Profile",
-        description: "No overt credential-harvesting keywords or urgency lures detected in path or parameters.",
+        title: isReservedDocDomain ? "Reserved Documentation Profile" : "Clean Contextual Profile",
+        description: isReservedDocDomain
+          ? "RFC 2606 documentation/test domain; credential paths represent sample/test URLs."
+          : "No overt credential-harvesting keywords or urgency lures detected in path or parameters.",
         severity: "info",
       });
     }
@@ -604,29 +610,37 @@ export class QRRiskEngine {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // EXECUTIVE REASONING SYNTHESIS
+    // CANONICAL EXECUTIVE VERDICT & THREAT SYNTHESIS
     // ─────────────────────────────────────────────────────────────
-    let reasoning = "";
-    if (threatLevel === "CRITICAL" || threatLevel === "HIGH") {
-      const topEvidence = evidenceList
-        .filter((e) => e.pointsAwarded > 0)
-        .sort((a, b) => b.pointsAwarded - a.pointsAwarded)[0];
-      reasoning = `High-probability threat detected (${totalRiskScore}/100 Risk Score). Primary driver: ${topEvidence ? topEvidence.title : "Deceptive URL features"}. Not safe for end-user interaction.`;
-    } else if (parsed.brandAudit.isImpersonating && (parsed.brandAudit.brandLocation === "subdomain" || parsed.brandAudit.brandLocation === "userinfo")) {
-      reasoning = `Brand impersonation threat detected (${totalRiskScore}/100 Risk Score). Hostname deceptively masquerades as "${parsed.brandAudit.targetBrand}" on unauthorized host "${parsed.domainInfo.registrableDomain}". Potential phishing vector.`;
-    } else if (parsed.redirectAudit.redirect_destination_untrusted) {
-      reasoning = `Untrusted cross-origin redirect detected (${totalRiskScore}/100 Risk Score). The URL forwards user sessions or credentials to an external host: "${parsed.redirectAudit.normalizedCandidate || "untrusted target"}". Potential open redirect vulnerability.`;
-    } else if (threatLevel === "SUSPICIOUS") {
-      reasoning = `Elevated risk signals detected (${totalRiskScore}/100 Risk Score). The URL uses ambiguous masking, unencrypted protocols, or redirect parameters. Proceed with caution.`;
-    } else if (threatLevel === "LOW") {
-      reasoning = `Low risk profile (${totalRiskScore}/100 Risk Score). Minor non-standard parameters or shortening observed, but no active brand spoofing or homoglyph attacks identified.`;
-    } else {
-      reasoning = `Verified Clean (${totalRiskScore}/100 Risk Score). Destination structure matches expected canonical web standards with no detected spoofing or malicious redirects.`;
-    }
+    const topEvidence = evidenceList
+      .filter((e) => e.pointsAwarded > 0)
+      .sort((a, b) => b.pointsAwarded - a.pointsAwarded)[0];
+
+    const isReservedDocIp = URLSecurityAnalyzer.isReservedDocumentationIp(parsed.hostname);
+
+    const canonical = evaluateCanonicalRisk({
+      rawScore: totalRiskScore,
+      threatCategory: threatType,
+      isAuthenticPlatform: isVerifiedPlatform,
+      isReservedDocDomain,
+      isReservedDocIp,
+      isSsrfTarget: parsed.ssrfTarget,
+      isRedirectUntrusted: parsed.redirectAudit.redirect_destination_untrusted,
+      brandAudit: parsed.brandAudit,
+      hasUserInfo: parsed.hasUserInfo,
+      userInfoString: parsed.userInfoString,
+      actualHostname: parsed.hostname,
+      isHttp: parsed.protocol === "http",
+      indicators,
+      primaryDriver: topEvidence?.title,
+    });
+
+    totalRiskScore = canonical.riskScore;
+    threatLevel = canonical.riskLevel as ThreatClassification;
+    threatType = canonical.threatType;
+    const reasoning = canonical.verdict;
 
     // Measurement Confidence (Evidence Depth)
-    // Requirement 6: If confidence is not derived from a calibrated model or defensible evidence calculation,
-    // label it as a heuristic confidence estimate or calibrate against verifiable signals.
     let confidence = 60;
     let confidenceType: "HEURISTIC_ESTIMATE" | "CALIBRATED_EVIDENCE" = "HEURISTIC_ESTIMATE";
     let confidenceLabel = "Heuristic Confidence Estimate";
@@ -657,7 +671,7 @@ export class QRRiskEngine {
 
     return {
       riskScore: totalRiskScore,
-      authenticityScore,
+      authenticityScore: canonical.authenticityScore,
       threatLevel,
       confidence,
       confidenceType,
