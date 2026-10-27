@@ -133,6 +133,15 @@ export function evaluateCanonicalRisk(params: CanonicalAssessmentParams): Canoni
     score = Math.max(score, CANONICAL_THRESHOLDS.SUSPICIOUS.min);
   }
 
+  // 5. SSRF Prohibited Destination Enforcement:
+  // Confirmed loopback, RFC 1918 private, link-local, cloud metadata, or internal destinations
+  // represent a critical SSRF security finding.
+  // The overall risk score MUST be in the CRITICAL tier (>= 80, e.g. 85), and level MUST be CRITICAL.
+  // A confirmed prohibited SSRF target must NEVER be labeled as LOW or SAFE.
+  if (params.isSsrfTarget && !params.isReservedDocIp) {
+    score = Math.max(score, 85);
+  }
+
   // Derive riskLevel strictly from score
   const riskLevel = getThreatLevelFromScore(score);
   const threshold = CANONICAL_THRESHOLDS[riskLevel];
@@ -159,11 +168,20 @@ export function evaluateCanonicalRisk(params: CanonicalAssessmentParams): Canoni
   let verdict = "";
 
   if (riskLevel === "CRITICAL") {
-    verdict = `Critical Threat (${score}/100 Risk Score). High-probability malicious threat detected. ${params.primaryDriver || "Severe security anomalies observed."} End-user interaction strongly advised against.`;
-    reasons.push(
-      params.primaryDriver || "Critical structural threats or credential harvesting patterns identified",
-      "Calculated risk exceeds safe operational threshold (80-100/100)"
-    );
+    if (params.isSsrfTarget && !params.isReservedDocIp) {
+      verdict = `Critical Threat (${score}/100 Risk Score). Target host is a prohibited internal, loopback, or private destination (${params.actualHostname || "prohibited host"}). Outbound network connection blocked by SSRF defense policy.`;
+      reasons.push(
+        `Prohibited network destination: ${params.actualHostname || "internal/loopback address"} is restricted under SSRF boundary policy`,
+        "SSRF (Server-Side Request Forgery) protection policy triggered — automated probe blocked",
+        "Calculated risk in critical threat tier (80-100/100)"
+      );
+    } else {
+      verdict = `Critical Threat (${score}/100 Risk Score). High-probability malicious threat detected. ${params.primaryDriver || "Severe security anomalies observed."} End-user interaction strongly advised against.`;
+      reasons.push(
+        params.primaryDriver || "Critical structural threats or credential harvesting patterns identified",
+        "Calculated risk exceeds safe operational threshold (80-100/100)"
+      );
+    }
   } else if (riskLevel === "HIGH") {
     verdict = `High Risk Threat (${score}/100 Risk Score). Elevated deceptive patterns observed. ${params.primaryDriver || "URL exhibits credential harvesting or deceptive authority signatures."} Proceed with extreme caution.`;
     reasons.push(
@@ -190,9 +208,6 @@ export function evaluateCanonicalRisk(params: CanonicalAssessmentParams): Canoni
     if (params.isReservedDocIp) {
       verdict = `Low Risk Profile (${score}/100 Risk Score). Destination is in an RFC 5737 reserved test/documentation IP range. Outbound requests are blocked per SSRF defense policy.`;
       reasons.push("RFC 5737 documentation/test IP range", "SSRF protection blocks external probes");
-    } else if (params.isSsrfTarget) {
-      verdict = `Low Risk Profile (${score}/100 Risk Score). Destination points to a local or private address (${params.actualHostname}). Protected from outbound requests by SSRF boundary.`;
-      reasons.push("Private / loopback network destination", "SSRF protection policy enforced");
     } else if (params.isHttp) {
       verdict = `Low Risk Profile (${score}/100 Risk Score). Cleartext HTTP protocol in use without TLS encryption. No active brand spoofing or malicious indicators identified.`;
       reasons.push("Cleartext HTTP protocol lacks in-transit encryption", "Lexical domain structure is otherwise benign");

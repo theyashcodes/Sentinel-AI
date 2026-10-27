@@ -124,13 +124,18 @@ export async function POST(req: NextRequest) {
       .filter((e) => e.pointsAwarded > 0)
       .sort((a, b) => b.pointsAwarded - a.pointsAwarded)[0];
 
+    const isSsrfEnforced = parsed.ssrfTarget || Boolean((evidence as any)?.ssrfProtected);
+    if (Boolean((evidence as any)?.ssrfProtected) && !parsed.ssrfTarget) {
+      riskResult.indicators.push("SSRF Protection Triggered: redirect or resolution targeted prohibited internal network");
+    }
+
     const canonicalAssessment = evaluateCanonicalRisk({
       rawScore: compositeScore,
       threatCategory: mlVerdict && mlVerdict.threatType !== "SAFE" ? mlVerdict.threatType : riskResult.threatType,
       isAuthenticPlatform,
       isReservedDocDomain,
       isReservedDocIp,
-      isSsrfTarget: parsed.ssrfTarget,
+      isSsrfTarget: isSsrfEnforced,
       brandAudit: parsed.brandAudit,
       hasUserInfo: parsed.hasUserInfo,
       userInfoString: parsed.userInfoString,

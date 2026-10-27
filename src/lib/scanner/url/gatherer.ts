@@ -249,6 +249,11 @@ export class EvidenceGatherer {
       if (err?.message?.includes("SSRF")) {
         evidence.ssrfProtected = true;
         evidence.networkRedirectStatus = "BLOCKED_SSRF";
+        if (!evidence.headers) {
+          evidence.headers = {};
+        }
+        (evidence.headers as Record<string, unknown>)["x-sentinel-ssrf-block"] =
+          err?.message || "Prohibited internal or loopback destination. Network scan aborted.";
       } else {
         evidence.networkRedirectStatus = "FAILED";
       }

@@ -2,6 +2,7 @@
 // Validates canonical scoring, legitimate-domain false positives, SSRF enforcement, and header indicators.
 
 import assert from "node:assert/strict";
+import http from "node:http";
 import { UrlNormalizer } from "../src/lib/scanner/url/normalizer";
 import { URLSecurityAnalyzer } from "../src/modules/scanner/qr/services/url-security";
 import { QRRiskEngine } from "../src/modules/scanner/qr/services/risk-engine";
@@ -262,6 +263,23 @@ async function runAllTests() {
     assert.equal(evalRes.parsed.domainInfo.isIpAddress, true);
     assert.equal(evalRes.parsed.domainInfo.isPrivateOrLoopback, true);
     assert.equal(evalRes.parsed.ssrfTarget, true);
+
+    // Bug 1 fix: Confirmed prohibited loopback target must be treated as a CRITICAL security finding.
+    // Must NEVER be labeled as LOW or SAFE, and riskScore must be in CRITICAL tier (>= 80).
+    assert.ok(
+      evalRes.riskResult.riskScore >= 80,
+      `Loopback SSRF target must have riskScore >= 80, got: ${evalRes.riskResult.riskScore}`
+    );
+    assert.equal(evalRes.riskResult.threatLevel, "CRITICAL");
+    assert.equal(evalRes.riskResult.threatType, "SSRF_PROHIBITED");
+    assert.ok(
+      evalRes.riskResult.reasoning.includes("Critical Threat"),
+      `Verdict must indicate Critical Threat, got: "${evalRes.riskResult.reasoning}"`
+    );
+    assert.ok(
+      evalRes.riskResult.reasoning.includes("SSRF") || evalRes.riskResult.reasoning.includes("prohibited"),
+      `Verdict must mention SSRF or prohibited destination`
+    );
   });
 
   // Test URL 12: http://192.168.1.1
@@ -273,6 +291,14 @@ async function runAllTests() {
     assert.equal(evalRes.parsed.domainInfo.isIpAddress, true);
     assert.equal(evalRes.parsed.domainInfo.isPrivateOrLoopback, true);
     assert.equal(evalRes.parsed.ssrfTarget, true);
+
+    // Private IPv4 destination is a critical security finding
+    assert.ok(
+      evalRes.riskResult.riskScore >= 80,
+      `Private IP must have riskScore >= 80, got: ${evalRes.riskResult.riskScore}`
+    );
+    assert.equal(evalRes.riskResult.threatLevel, "CRITICAL");
+    assert.equal(evalRes.riskResult.threatType, "SSRF_PROHIBITED");
   });
 
   // Test URL 13: http://192.0.2.1/login
@@ -285,8 +311,54 @@ async function runAllTests() {
 
     const evalRes = QRSecurityChecker.evaluateSecurity(norm.normalized);
     assert.equal(evalRes.parsed.ssrfTarget, true);
-    // Not classified as confirmed malware payload distributor
+    // Reserved documentation IP is blocked from network fetch but not classified as malware
     assert.ok(evalRes.riskResult.threatType !== "MALWARE");
+  });
+
+  // Additional SSRF Regression Tests: localhost, IPv6 loopback, private IPv4 ranges
+  await runTest("2.14 Localhost Prohibited SSRF Target (http://localhost:3000)", () => {
+    const norm = UrlNormalizer.normalize("http://localhost:3000");
+    assert.equal(norm.hostname, "localhost");
+
+    const evalRes = QRSecurityChecker.evaluateSecurity(norm.normalized);
+    assert.equal(evalRes.parsed.domainInfo.isPrivateOrLoopback, true);
+    assert.equal(evalRes.parsed.ssrfTarget, true);
+    assert.ok(evalRes.riskResult.riskScore >= 80, `localhost must score >= 80, got: ${evalRes.riskResult.riskScore}`);
+    assert.equal(evalRes.riskResult.threatLevel, "CRITICAL");
+    assert.notEqual(evalRes.riskResult.threatLevel, "LOW");
+    assert.notEqual(evalRes.riskResult.threatLevel, "SAFE");
+  });
+
+  await runTest("2.15 IPv6 Loopback Prohibited Target (http://[::1]:8080/admin)", () => {
+    const norm = UrlNormalizer.normalize("http://[::1]:8080/admin");
+    assert.equal(norm.hostname, "[::1]");
+
+    const evalRes = QRSecurityChecker.evaluateSecurity(norm.normalized);
+    assert.equal(evalRes.parsed.domainInfo.isIpAddress, true);
+    assert.equal(evalRes.parsed.domainInfo.isPrivateOrLoopback, true);
+    assert.equal(evalRes.parsed.ssrfTarget, true);
+    assert.ok(evalRes.riskResult.riskScore >= 80, `[::1] must score >= 80, got: ${evalRes.riskResult.riskScore}`);
+    assert.equal(evalRes.riskResult.threatLevel, "CRITICAL");
+    assert.notEqual(evalRes.riskResult.threatLevel, "LOW");
+    assert.notEqual(evalRes.riskResult.threatLevel, "SAFE");
+  });
+
+  await runTest("2.16 Private IPv4 Ranges (10.0.0.1, 172.16.0.1, 169.254.169.254)", () => {
+    const targets = [
+      "http://10.0.0.1/admin",
+      "http://172.16.0.1/api",
+      "http://169.254.169.254/latest/meta-data/",
+    ];
+
+    for (const target of targets) {
+      const evalRes = QRSecurityChecker.evaluateSecurity(target);
+      assert.equal(evalRes.parsed.domainInfo.isPrivateOrLoopback, true);
+      assert.equal(evalRes.parsed.ssrfTarget, true);
+      assert.ok(evalRes.riskResult.riskScore >= 80, `${target} must score >= 80, got: ${evalRes.riskResult.riskScore}`);
+      assert.equal(evalRes.riskResult.threatLevel, "CRITICAL");
+      assert.notEqual(evalRes.riskResult.threatLevel, "LOW");
+      assert.notEqual(evalRes.riskResult.threatLevel, "SAFE");
+    }
   });
 
   // =========================================================================
@@ -326,6 +398,50 @@ async function runAllTests() {
     const evidence = await EvidenceGatherer.gather("http://localhost:3000", "localhost");
     assert.equal(evidence.ssrfProtected, true);
     assert.equal(evidence.networkRedirectStatus, "BLOCKED_SSRF");
+  });
+
+  await runTest("3.6 Backend SSRF: IPv6 Loopback ([::1]) is blocked before connection", async () => {
+    const evidence = await EvidenceGatherer.gather("http://[::1]:8080/admin", "[::1]");
+    assert.equal(evidence.ssrfProtected, true);
+    assert.equal(evidence.networkRedirectStatus, "BLOCKED_SSRF");
+    assert.ok(
+      String((evidence.headers as any)?.["x-sentinel-ssrf-block"]).includes("Prohibited"),
+      "Must have SSRF block header"
+    );
+  });
+
+  await runTest("3.7 Backend SSRF: Redirect to private/loopback IP is intercepted and blocked", async () => {
+    // Create a mock server that attempts to redirect to a private IP
+    const server = http.createServer((req, res) => {
+      if (req.url === "/initiate") {
+        // Redirect to private IP (192.168.1.1)
+        res.writeHead(302, { Location: "http://192.168.1.1/secret-management" });
+        res.end();
+      } else {
+        res.writeHead(404);
+        res.end();
+      }
+    });
+
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const port = (server.address() as any).port;
+    const testUrl = `http://127.0.0.1:${port}/initiate`;
+
+    try {
+      // Test with verifyControlledNetworkRedirect
+      const verification = await URLSecurityAnalyzer.verifyControlledNetworkRedirect(testUrl, {
+        allowLoopback: false, // Strict SSRF enforcement
+        maxHops: 5,
+      });
+
+      assert.equal(verification.networkRedirectStatus, "BLOCKED_SSRF");
+      assert.ok(
+        verification.error?.includes("SSRF blocked destination"),
+        `Error must mention SSRF block, got: ${verification.error}`
+      );
+    } finally {
+      server.close();
+    }
   });
 
   // =========================================================================

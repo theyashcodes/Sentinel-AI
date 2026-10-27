@@ -592,6 +592,20 @@ export class QRRiskEngine {
       }
     }
 
+    // PRINCIPLED SECURITY POLICY FOR PROHIBITED SSRF TARGETS:
+    // Confirmed loopback, RFC 1918 private, link-local, cloud metadata, or internal destinations
+    // represent a critical security finding. It must NEVER be classified as SAFE or LOW RISK.
+    // Enforce CRITICAL threat classification floor (score >= 80).
+    const isReservedDocIpEarly = URLSecurityAnalyzer.isReservedDocumentationIp(parsed.hostname);
+    if (parsed.ssrfTarget && !isReservedDocIpEarly) {
+      if (threatLevel !== "CRITICAL") {
+        threatLevel = "CRITICAL";
+      }
+      if (totalRiskScore < RISK_THRESHOLDS.CRITICAL.min) {
+        totalRiskScore = 85;
+      }
+    }
+
     // Authenticity Score is mathematically defined as (100 - totalRiskScore)
     const authenticityScore = 100 - totalRiskScore;
 

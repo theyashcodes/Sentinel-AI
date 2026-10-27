@@ -264,11 +264,12 @@ export class URLSecurityAnalyzer {
   static parseDomain(hostname: string): ParsedDomainInfo {
     const rawHostname = hostname.trim();
     const cleanHost = rawHostname.toLowerCase().replace(/^\.+|\.+$/g, "");
+    const unbracketedHost = cleanHost.replace(/^\[|\]$/g, "");
 
-    // 1. Check IP address
-    const ipVersion = net.isIP(cleanHost);
+    // 1. Check IP address (handles standard IPv4, IPv6, and bracketed IPv6 e.g. [::1])
+    const ipVersion = net.isIP(unbracketedHost);
     if (ipVersion !== 0) {
-      const isPrivateOrLoopback = this.isPrivateOrLoopbackIp(cleanHost);
+      const isPrivateOrLoopback = this.isPrivateOrLoopbackIp(unbracketedHost);
       return {
         rawHostname,
         normalizedHostname: cleanHost,
@@ -281,13 +282,15 @@ export class URLSecurityAnalyzer {
       };
     }
 
-    // 2. Check Localhost aliases
+    // 2. Check Localhost and internal network aliases
     const isLocalhost =
       cleanHost === "localhost" ||
       cleanHost.endsWith(".localhost") ||
       cleanHost.endsWith(".local") ||
       cleanHost.endsWith(".internal") ||
-      cleanHost === "metadata.google.internal";
+      cleanHost.endsWith(".lan") ||
+      cleanHost === "metadata.google.internal" ||
+      cleanHost === "instance-data";
 
     if (isLocalhost) {
       return {
@@ -344,11 +347,24 @@ export class URLSecurityAnalyzer {
   }
 
   /**
-   * Evaluates if an IP is within loopback, RFC 1918 private, link-local, carrier-grade NAT,
-   * multicast, broadcast, or reserved/test ranges (RFC 5737, RFC 6890, RFC 2544, RFC 1112).
+   * Evaluates if a host or IP is within loopback, RFC 1918 private, link-local, carrier-grade NAT,
+   * multicast, broadcast, cloud metadata, or reserved/test ranges (RFC 5737, RFC 6890, RFC 2544, RFC 1112).
    */
   static isPrivateOrLoopbackIp(ip: string): boolean {
-    const cleanIp = ip.trim().replace(/^\[|\]$/g, "");
+    const cleanIp = ip.trim().toLowerCase().replace(/^\[|\]$/g, "");
+
+    // Named Localhost & Internal Aliases
+    if (
+      cleanIp === "localhost" ||
+      cleanIp.endsWith(".localhost") ||
+      cleanIp.endsWith(".local") ||
+      cleanIp.endsWith(".internal") ||
+      cleanIp.endsWith(".lan") ||
+      cleanIp === "metadata.google.internal" ||
+      cleanIp === "instance-data"
+    ) {
+      return true;
+    }
 
     // IPv4 Checks
     if (net.isIPv4(cleanIp)) {
@@ -395,7 +411,15 @@ export class URLSecurityAnalyzer {
       const lower = cleanIp.toLowerCase();
 
       // Loopback ::1 and unspecified ::
-      if (lower === "::1" || lower === "::" || lower === "0:0:0:0:0:0:0:1" || lower === "0:0:0:0:0:0:0:0") return true;
+      if (
+        lower === "::1" ||
+        lower === "::" ||
+        lower === "0:0:0:0:0:0:0:1" ||
+        lower === "0:0:0:0:0:0:0:0" ||
+        /^0*(:0*){6,7}:?1$/.test(lower)
+      ) {
+        return true;
+      }
 
       // IPv4-mapped IPv6 address (::ffff:x.x.x.x)
       if (lower.startsWith("::ffff:") || lower.startsWith("0:0:0:0:0:ffff:")) {
