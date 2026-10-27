@@ -55,7 +55,7 @@ export interface URLScanResponse {
       overallStatus?: "TESTED" | "NOT_TESTED";
     };
   };
-  evidence?: unknown;
+  evidence?: Record<string, any> | null;
   mlProbability?: Record<string, number>;
 }
 
@@ -170,6 +170,7 @@ export default function UrlScannerPage() {
       });
     } catch (scanError) {
       setError(scanError instanceof Error ? scanError.message : "An unexpected error occurred.");
+      setResult(null);
     } finally {
       clearInterval(interval);
       setLoading(false);
@@ -281,21 +282,33 @@ export default function UrlScannerPage() {
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Quick Test:</span>
                 <button
                   type="button"
-                  onClick={() => setUrl("https://github.com")}
+                  onClick={() => {
+                    setUrl("https://github.com");
+                    setResult(null);
+                    setError(null);
+                  }}
                   className="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-mono text-[11px] transition-colors cursor-pointer"
                 >
                   github.com
                 </button>
                 <button
                   type="button"
-                  onClick={() => setUrl("https://apple.com-login-verify.top/auth")}
+                  onClick={() => {
+                    setUrl("https://apple.com-login-verify.top/auth");
+                    setResult(null);
+                    setError(null);
+                  }}
                   className="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-mono text-[11px] transition-colors cursor-pointer"
                 >
                   apple.com-login...
                 </button>
                 <button
                   type="button"
-                  onClick={() => setUrl("http://192.168.1.1/admin")}
+                  onClick={() => {
+                    setUrl("http://192.168.1.1/admin");
+                    setResult(null);
+                    setError(null);
+                  }}
                   className="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-mono text-[11px] transition-colors cursor-pointer"
                 >
                   192.168.1.1 (SSRF)
@@ -438,8 +451,16 @@ export default function UrlScannerPage() {
                     ].map((item, i) => {
                       const audit = result.securityChecks?.securityHeadersAudit || (result.evidence as any)?.securityHeadersAudit;
                       const check = audit ? audit[item.headerKey] : null;
+                      const isSsrfBlocked = Boolean(
+                        result.evidence?.ssrfProtected ||
+                        result.securityChecks?.networkRedirectStatus === "BLOCKED_SSRF" ||
+                        result.threatType === "SSRF_ATTEMPT"
+                      );
                       const status: "PASS" | "FAIL" | "NOT_TESTED" = check?.status || "NOT_TESTED";
-                      const explanation = check?.explanation || (status === "NOT_TESTED" ? "Not tested (static URL analysis or blocked destination)" : "");
+                      const defaultNotTestedExp = isSsrfBlocked
+                        ? "Skipped because the outbound request was blocked by SSRF policy."
+                        : "Not tested (static URL analysis or blocked destination)";
+                      const explanation = check?.explanation || (status === "NOT_TESTED" ? defaultNotTestedExp : "");
 
                       return (
                         <div key={i} className="flex items-center justify-between p-2.5 rounded-xl bg-white/60 border border-slate-200/60">
@@ -481,24 +502,38 @@ export default function UrlScannerPage() {
 
                     {/* Network Redirect Telemetry Status */}
                     <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/60 border border-slate-200/60">
-                      <div>
+                      <div className="min-w-0 pr-2">
                         <span className="font-bold text-xs text-slate-800 block">Redirect Chain Telemetry</span>
-                        <span className="text-[10px] text-slate-400">
+                        <span className="text-[10px] text-slate-400 block truncate" title={
+                          result.securityChecks?.networkRedirectStatus === "VERIFIED_HTTP_CHAIN"
+                            ? "Observed active HTTP hop chain"
+                            : (result.evidence?.ssrfProtected || result.securityChecks?.networkRedirectStatus === "BLOCKED_SSRF" || result.threatType === "SSRF_ATTEMPT")
+                            ? "Skipped because the outbound request was blocked by SSRF policy."
+                            : "Static query analysis only (no unverified 301/302 claim)"
+                        }>
                           {result.securityChecks?.networkRedirectStatus === "VERIFIED_HTTP_CHAIN"
                             ? "Observed active HTTP hop chain"
-                            : result.securityChecks?.networkRedirectStatus === "BLOCKED_SSRF"
-                            ? "Gated by SSRF perimeter policy"
+                            : (result.evidence?.ssrfProtected || result.securityChecks?.networkRedirectStatus === "BLOCKED_SSRF" || result.threatType === "SSRF_ATTEMPT")
+                            ? "Skipped because the outbound request was blocked by SSRF policy."
                             : "Static query analysis only (no unverified 301/302 claim)"}
                         </span>
                       </div>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0 flex items-center gap-1 ${
                         result.securityChecks?.networkRedirectStatus === "VERIFIED_HTTP_CHAIN"
                           ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                          : result.securityChecks?.networkRedirectStatus === "BLOCKED_SSRF"
-                          ? "bg-rose-50 text-rose-700 border border-rose-200"
                           : "bg-slate-100 text-slate-600 border border-slate-200"
                       }`}>
-                        {result.securityChecks?.networkRedirectStatus || "NOT TESTED"}
+                        {result.securityChecks?.networkRedirectStatus === "VERIFIED_HTTP_CHAIN" ? (
+                          <>
+                            <CheckCircle className="h-3 w-3 text-emerald-600" />
+                            <span>PASS</span>
+                          </>
+                        ) : (
+                          <>
+                            <MinusCircle className="h-3 w-3 text-slate-400" />
+                            <span>NOT TESTED</span>
+                          </>
+                        )}
                       </span>
                     </div>
                   </div>
@@ -670,68 +705,72 @@ export default function UrlScannerPage() {
 
             {history.length > 0 ? (
               <div className="space-y-3">
-                {history.slice(0, 5).map((scan) => (
-                  <div
-                    key={scan.id}
-                    onClick={() => {
-                      const meta = scan.result?.analysisMetadata;
-                      const rScore = typeof meta?.riskScore === "number"
-                        ? meta.riskScore
-                        : scan.riskLevel === "SAFE" ? 5 : scan.riskLevel === "LOW" ? 25 : scan.riskLevel === "MEDIUM" ? 50 : 80;
-                      const aScore = meta?.authenticityScore ?? (100 - rScore);
-                      const breakdown = meta?.scoreBreakdown || {
-                        brandImpersonationScore: 0,
-                        unicodeConfusableScore: 0,
-                        redirectRiskScore: 0,
-                        urlStructureScore: 0,
-                        domainReputationScore: 0,
-                        contextualLureScore: 0,
-                        totalRiskScore: rScore,
-                      };
+                {history.slice(0, 5).map((scan) => {
+                  const meta = scan.result?.analysisMetadata as Record<string, any> | undefined;
+                  const canonicalRiskLevel = (meta?.riskLevel as string) || (scan.riskLevel === "MEDIUM" ? "SUSPICIOUS" : scan.riskLevel) || "SAFE";
 
-                      setResult({
-                        scanId: scan.id,
-                        normalized: scan.payload || "",
-                        riskScore: rScore,
-                        authenticityScore: aScore,
-                        riskLevel: scan.riskLevel || "SAFE",
-                        confidence: scan.result?.confidenceScore || 90,
-                        threatType: scan.result?.threatCategory || "BENIGN",
-                        reasoning: meta?.reasoning || meta?.technicalReasoning || "Analyzed URL destination verified.",
-                        indicators: ["Lexical structure inspected", "Domain authenticity checked"],
-                        scoreBreakdown: breakdown,
-                        signalEvidence: meta?.signalEvidence || [],
-                        securityChecks: {
-                          isShortener: scan.evidenceMetadata?.securityChecks?.isShortener ?? false,
-                          isPunycode: scan.evidenceMetadata?.securityChecks?.isPunycode ?? false,
-                          isUnicodeSpoof: scan.evidenceMetadata?.securityChecks?.isUnicodeSpoof ?? false,
-                          isHttp: scan.evidenceMetadata?.securityChecks?.isHttp ?? false,
-                          isSuspiciousTld: scan.evidenceMetadata?.securityChecks?.isSuspiciousTld ?? false,
-                          redirect_parameter_present: scan.evidenceMetadata?.securityChecks?.redirect_parameter_present ?? false,
-                          redirect_destination_untrusted: scan.evidenceMetadata?.securityChecks?.redirect_destination_untrusted ?? false,
-                          redirect_chain_observed: scan.evidenceMetadata?.securityChecks?.redirect_chain_observed ?? false,
-                          redirect_chain_verified: scan.evidenceMetadata?.securityChecks?.redirect_chain_verified ?? false,
-                          networkRedirectStatus: scan.evidenceMetadata?.securityChecks?.networkRedirectStatus ?? "NOT_TESTED",
-                          warnings: scan.evidenceMetadata?.securityChecks?.warnings || []
-                        },
-                        evidence: meta?.evidence || null
-                      });
-                    }}
-                    className="liquid-glass-subcard p-3 rounded-2xl flex items-center justify-between cursor-pointer group hover:bg-slate-50 transition-colors"
-                  >
-                    <div className="min-w-0 pr-2">
-                      <p className="font-mono text-xs font-bold text-slate-800 truncate">
-                        {scan.payload || "URL Target"}
-                      </p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">
-                        {new Date(scan.createdAt).toLocaleDateString()}
-                      </p>
+                  return (
+                    <div
+                      key={scan.id}
+                      onClick={() => {
+                        const rScore = typeof meta?.riskScore === "number"
+                          ? meta.riskScore
+                          : canonicalRiskLevel === "SAFE" ? 5 : canonicalRiskLevel === "LOW" ? 25 : canonicalRiskLevel === "SUSPICIOUS" ? 40 : 80;
+                        const aScore = meta?.authenticityScore ?? (100 - rScore);
+                        const breakdown = meta?.scoreBreakdown || {
+                          brandImpersonationScore: 0,
+                          unicodeConfusableScore: 0,
+                          redirectRiskScore: 0,
+                          urlStructureScore: 0,
+                          domainReputationScore: 0,
+                          contextualLureScore: 0,
+                          totalRiskScore: rScore,
+                        };
+
+                        setResult({
+                          scanId: scan.id,
+                          normalized: scan.payload || "",
+                          riskScore: rScore,
+                          authenticityScore: aScore,
+                          riskLevel: canonicalRiskLevel,
+                          confidence: scan.result?.confidenceScore || 90,
+                          threatType: meta?.threatCategory || scan.result?.threatCategory || "BENIGN",
+                          reasoning: meta?.reasoning || meta?.technicalReasoning || "Analyzed URL destination verified.",
+                          indicators: meta?.indicators || (meta?.reasons as string[]) || ["Lexical structure inspected", "Domain authenticity checked"],
+                          scoreBreakdown: breakdown,
+                          signalEvidence: meta?.signalEvidence || [],
+                          securityChecks: (meta?.securityChecks as any) || scan.evidenceMetadata?.securityChecks || {
+                            isShortener: false,
+                            isPunycode: false,
+                            isUnicodeSpoof: false,
+                            isHttp: false,
+                            isSuspiciousTld: false,
+                            redirect_parameter_present: false,
+                            redirect_destination_untrusted: false,
+                            redirect_chain_observed: false,
+                            redirect_chain_verified: false,
+                            networkRedirectStatus: "NOT_TESTED",
+                            warnings: []
+                          },
+                          evidence: meta?.evidence || null
+                        });
+                      }}
+                      className="liquid-glass-subcard p-3 rounded-2xl flex items-center justify-between cursor-pointer group hover:bg-slate-50 transition-colors"
+                    >
+                      <div className="min-w-0 pr-2">
+                        <p className="font-mono text-xs font-bold text-slate-800 truncate">
+                          {scan.payload || "URL Target"}
+                        </p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">
+                          {new Date(scan.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full shrink-0 ${getRiskBadgeColor(canonicalRiskLevel)}`}>
+                        {canonicalRiskLevel}
+                      </span>
                     </div>
-                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full shrink-0 ${getRiskBadgeColor(scan.riskLevel)}`}>
-                      {scan.riskLevel}
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <p className="text-xs text-slate-400 text-center py-6">

@@ -769,6 +769,48 @@ async function runAllTests() {
     }
   });
 
+  await runTest("3.17 Perimeter Security: SSRF-blocked target sets NOT_TESTED with policy explanation", () => {
+    const audit = EvidenceGatherer.evaluateSecurityHeaders(null, true, true);
+    assert.equal(audit.overallStatus, "NOT_TESTED");
+    assert.equal(audit.strictTransportSecurity.status, "NOT_TESTED");
+    assert.equal(audit.strictTransportSecurity.explanation, "Skipped because the outbound request was blocked by SSRF policy.");
+    assert.equal(audit.contentSecurityPolicy.status, "NOT_TESTED");
+    assert.equal(audit.contentSecurityPolicy.explanation, "Skipped because the outbound request was blocked by SSRF policy.");
+    assert.equal(audit.xFrameOptions.status, "NOT_TESTED");
+    assert.equal(audit.xFrameOptions.explanation, "Skipped because the outbound request was blocked by SSRF policy.");
+    assert.equal(audit.xContentTypeOptions.status, "NOT_TESTED");
+    assert.equal(audit.xContentTypeOptions.explanation, "Skipped because the outbound request was blocked by SSRF policy.");
+  });
+
+  await runTest("3.18 Perimeter Security: EvidenceGatherer on loopback produces NOT_TESTED with SSRF explanation", async () => {
+    const evidence = await EvidenceGatherer.gather("http://127.0.0.1/admin", "127.0.0.1");
+    assert.equal(evidence.ssrfProtected, true);
+    assert.equal(evidence.networkRedirectStatus, "BLOCKED_SSRF");
+    assert.ok(evidence.securityHeadersAudit, "securityHeadersAudit must be defined");
+    assert.equal(evidence.securityHeadersAudit.overallStatus, "NOT_TESTED");
+    assert.equal(evidence.securityHeadersAudit.strictTransportSecurity.status, "NOT_TESTED");
+    assert.equal(evidence.securityHeadersAudit.strictTransportSecurity.explanation, "Skipped because the outbound request was blocked by SSRF policy.");
+  });
+
+  await runTest("3.19 Perimeter Security: Checks are never PASS without response headers", () => {
+    const unprobedAudit = EvidenceGatherer.evaluateSecurityHeaders(undefined, false, false);
+    assert.equal(unprobedAudit.overallStatus, "NOT_TESTED");
+    assert.notEqual(unprobedAudit.strictTransportSecurity.status, "PASS");
+    assert.notEqual(unprobedAudit.contentSecurityPolicy.status, "PASS");
+    assert.notEqual(unprobedAudit.xFrameOptions.status, "PASS");
+    assert.notEqual(unprobedAudit.xContentTypeOptions.status, "PASS");
+
+    // Partial response headers only PASS if specifically present and valid
+    const partialHeadersAudit = EvidenceGatherer.evaluateSecurityHeaders(
+      { "x-frame-options": "DENY" },
+      true,
+      false
+    );
+    assert.equal(partialHeadersAudit.xFrameOptions.status, "PASS");
+    assert.equal(partialHeadersAudit.contentSecurityPolicy.status, "FAIL"); // Missing header in actual response is FAIL
+    assert.equal(partialHeadersAudit.strictTransportSecurity.status, "FAIL"); // Missing in actual response is FAIL
+  });
+
   // =========================================================================
   // SECTION 4: URL Input Normalization & Edge Cases
   // =========================================================================

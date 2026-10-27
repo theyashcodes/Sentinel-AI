@@ -73,8 +73,15 @@ export async function POST(req: NextRequest) {
 
     if (parsed.ssrfTarget) {
       evidenceNetworkNotes = "Network probing blocked due to SSRF policy.";
+      const notTestedHeadersAudit = EvidenceGatherer.evaluateSecurityHeaders(
+        null,
+        normalized.protocol === "https",
+        true
+      );
       evidence = {
         ssrfProtected: true,
+        networkRedirectStatus: "BLOCKED_SSRF",
+        securityHeadersAudit: notTestedHeadersAudit,
         headers: { "x-sentinel-ssrf-block": "Prohibited private or loopback destination. Network scan aborted." }
       };
     } else {
@@ -157,6 +164,12 @@ export async function POST(req: NextRequest) {
       totalRiskScore: finalRiskScore,
     };
 
+    const finalSecurityChecks = {
+      ...securityChecks,
+      networkRedirectStatus: (evidence as any)?.networkRedirectStatus || securityChecks.networkRedirectStatus || "NOT_TESTED",
+      securityHeadersAudit: (evidence as any)?.securityHeadersAudit,
+    };
+
     // ─────────────────────────────────────────────────────────────
     // 5. Map Threat Level to Prisma RiskLevel Enum
     // ─────────────────────────────────────────────────────────────
@@ -185,7 +198,7 @@ export async function POST(req: NextRequest) {
             userId,
             payload: normalized.normalized,
             evidenceMetadata: {
-              securityChecks: securityChecks as unknown as InputJsonValue,
+              securityChecks: finalSecurityChecks as unknown as InputJsonValue,
               scoreBreakdown: scoreBreakdown as unknown as InputJsonValue,
             },
           },
@@ -201,12 +214,16 @@ export async function POST(req: NextRequest) {
             threatCategory: finalThreatType,
             analysisMetadata: {
               riskScore: finalRiskScore,
+              riskLevel: finalRiskLevel,
               authenticityScore,
               scoreBreakdown,
               signalEvidence: riskResult.signalEvidence,
               probabilities: mlVerdict?.probabilities,
-              securityChecks,
+              securityChecks: finalSecurityChecks,
               evidence,
+              reasoning: finalReasoning,
+              indicators: canonicalAssessment.reasons,
+              threatCategory: finalThreatType,
             } as unknown as InputJsonValue,
           },
         });
@@ -245,11 +262,7 @@ export async function POST(req: NextRequest) {
       report: `${finalReasoning} | Engine: Sentinel Multi-Vector Risk Classifier${evidenceNetworkNotes ? ` | ${evidenceNetworkNotes}` : ""}`,
       scoreBreakdown,
       signalEvidence: riskResult.signalEvidence,
-      securityChecks: {
-        ...securityChecks,
-        networkRedirectStatus: (evidence as any)?.networkRedirectStatus || securityChecks.networkRedirectStatus,
-        securityHeadersAudit: (evidence as any)?.securityHeadersAudit,
-      },
+      securityChecks: finalSecurityChecks,
       evidence,
       mlProbability: mlVerdict?.probabilities,
     });

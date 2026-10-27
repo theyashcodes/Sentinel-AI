@@ -71,9 +71,13 @@ export class EvidenceGatherer {
    */
   static evaluateSecurityHeaders(
     headers: Record<string, unknown> | null | undefined,
-    isHttps: boolean
+    isHttps: boolean,
+    isSsrfBlocked: boolean = false
   ): SecurityHeadersAudit {
     if (!headers || Object.keys(headers).length === 0) {
+      const explanation = isSsrfBlocked
+        ? "Skipped because the outbound request was blocked by SSRF policy."
+        : "HTTP response headers were not fetched or network request was blocked.";
       return {
         overallStatus: "NOT_TESTED",
         strictTransportSecurity: {
@@ -81,28 +85,28 @@ export class EvidenceGatherer {
           key: "strict-transport-security",
           desc: "HSTS Encrypted Gating",
           status: "NOT_TESTED",
-          explanation: "HTTP response headers were not fetched or network request was blocked.",
+          explanation,
         },
         contentSecurityPolicy: {
           name: "Content-Security-Policy",
           key: "content-security-policy",
           desc: "Script/Resource Sandboxing",
           status: "NOT_TESTED",
-          explanation: "HTTP response headers were not fetched or network request was blocked.",
+          explanation,
         },
         xFrameOptions: {
           name: "X-Frame-Options",
           key: "x-frame-options",
           desc: "Clickjacking Prevention",
           status: "NOT_TESTED",
-          explanation: "HTTP response headers were not fetched or network request was blocked.",
+          explanation,
         },
         xContentTypeOptions: {
           name: "X-Content-Type-Options",
           key: "x-content-type-options",
           desc: "MIME-sniffing Block",
           status: "NOT_TESTED",
-          explanation: "HTTP response headers were not fetched or network request was blocked.",
+          explanation,
         },
       };
     }
@@ -323,6 +327,7 @@ export class EvidenceGatherer {
           "x-sentinel-ssrf-block":
             `Prohibited internal or loopback destination. Network probe blocked: ${dnsErr.message}`,
         };
+        evidence.securityHeadersAudit = this.evaluateSecurityHeaders(null, normalizedUrl.startsWith("https"), true);
         return evidence;
       }
       evidence.dns = null;
@@ -366,7 +371,8 @@ export class EvidenceGatherer {
 
     // 4. Compute verified security headers audit
     const isFinalHttps = (evidence.finalUrl || normalizedUrl).startsWith("https");
-    evidence.securityHeadersAudit = this.evaluateSecurityHeaders(evidence.headers, isFinalHttps);
+    const isSsrfEnforced = Boolean(evidence.ssrfProtected || evidence.networkRedirectStatus === "BLOCKED_SSRF");
+    evidence.securityHeadersAudit = this.evaluateSecurityHeaders(evidence.headers, isFinalHttps, isSsrfEnforced);
 
     return evidence;
   }
