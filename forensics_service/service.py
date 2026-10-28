@@ -194,24 +194,55 @@ def compute_vae_residual_correlation(img: Image.Image) -> Dict[str, Any]:
     In physical cameras, RGB photon shot noise is largely uncorrelated across color channels.
     In Generative Diffusion models, the VAE neural decoder reconstructs RGB channels from a
     shared compressed latent representation, resulting in near-perfect (> 0.88) cross-channel residual correlation.
+    
+    Accounts for 4:2:0 JPEG subsampling and high-contrast text edges which artificially skew correlation.
     """
     small = img.convert("RGB").resize((384, 384), Image.Resampling.BILINEAR)
     arr = np.array(small, dtype=np.float32)
-    
+
+    # 1. Evaluate chroma vs luma noise ratio (YCbCr) to detect 4:2:0 JPEG chroma subsampling / monochrome documents
+    ycbcr = np.array(img.convert("YCbCr").resize((256, 256)), dtype=np.float32)
+    y = ycbcr[:, :, 0]
+    cb = ycbcr[:, :, 1]
+    cr = ycbcr[:, :, 2]
+
+    res_y = y - ndimage.gaussian_filter(y, sigma=1.0)
+    res_cb = cb - ndimage.gaussian_filter(cb, sigma=1.0)
+    res_cr = cr - ndimage.gaussian_filter(cr, sigma=1.0)
+
+    var_y = float(np.var(res_y))
+    var_cb = float(np.var(res_cb))
+    var_cr = float(np.var(res_cr))
+    chroma_ratio = float((var_cb + var_cr) / (2.0 * var_y + 1e-6))
+    is_chroma_suppressed = chroma_ratio < 0.012
+
+    # 2. Gradient-masked flat patch analysis (masks out text edges / sharp object boundaries)
+    gray = np.mean(arr, axis=2)
+    gx = ndimage.sobel(gray, axis=1)
+    gy = ndimage.sobel(gray, axis=0)
+    grad_mag = np.sqrt(gx**2 + gy**2)
+    flat_mask = grad_mag <= np.percentile(grad_mag, 50)
+
     res_r = arr[:, :, 0] - ndimage.gaussian_filter(arr[:, :, 0], sigma=1.0)
     res_g = arr[:, :, 1] - ndimage.gaussian_filter(arr[:, :, 1], sigma=1.0)
     res_b = arr[:, :, 2] - ndimage.gaussian_filter(arr[:, :, 2], sigma=1.0)
-    
-    corr_rg = float(np.corrcoef(res_r.flatten(), res_g.flatten())[0, 1])
-    corr_rb = float(np.corrcoef(res_r.flatten(), res_b.flatten())[0, 1])
-    corr_gb = float(np.corrcoef(res_g.flatten(), res_b.flatten())[0, 1])
-    
+
+    flat_r = res_r[flat_mask]
+    flat_g = res_g[flat_mask]
+    flat_b = res_b[flat_mask]
+
+    corr_rg = float(np.corrcoef(flat_r, flat_g)[0, 1])
+    corr_rb = float(np.corrcoef(flat_r, flat_b)[0, 1])
+    corr_gb = float(np.corrcoef(flat_g, flat_b)[0, 1])
+
     mean_corr = (corr_rg + corr_rb + corr_gb) / 3.0
-    is_vae_synthetic = mean_corr > 0.88
-    
+    is_vae_synthetic = (not is_chroma_suppressed) and (mean_corr > 0.88)
+
     return {
         "mean_correlation": round(mean_corr, 4),
-        "is_vae_synthetic": is_vae_synthetic
+        "is_vae_synthetic": is_vae_synthetic,
+        "is_chroma_suppressed": is_chroma_suppressed,
+        "chroma_ratio": round(chroma_ratio, 5)
     }
 
 @app.post("/detect-media")
@@ -267,34 +298,48 @@ async def detect_media(file: UploadFile = File(...)):
         detected_artifacts: List[str] = []
         heuristic_score = 0.0
 
-        # Evaluate VAE Latent Correlation (Strongest Physical Indicator)
+        # Evaluate VAE Latent Correlation
         if vae_corr["is_vae_synthetic"]:
             heuristic_score += 48.0
             detected_artifacts.append(
-                f"VAE Latent Decoder Signature: {vae_corr['mean_correlation']*100:.1f}% cross-channel high-frequency residual correlation. Natural camera sensors show uncorrelated shot noise, confirming synthetic neural synthesis."
+                f"VAE Latent Decoder Signature: {vae_corr['mean_correlation']*100:.1f}% cross-channel flat residual correlation (chroma/luma ratio: {vae_corr['chroma_ratio']*100:.2f}%). Unnatural cross-channel coupling characteristic of generative diffusion decoders."
+            )
+        elif vae_corr["is_chroma_suppressed"]:
+            detected_artifacts.append(
+                f"Chroma-Suppressed Document/Screen Profile: Natural camera capture of text/screen with 4:2:0 chroma subsampling (ratio: {vae_corr['chroma_ratio']*100:.3f}%). Verified absence of generative AI synthesis."
+            )
+        else:
+            detected_artifacts.append(
+                f"Natural Sensor Noise Separation: {vae_corr['mean_correlation']*100:.1f}% cross-channel residual correlation consistent with natural Bayer sensor captures."
             )
         
-        # Evaluate Spectral Peaks
+        # Evaluate Spectral Peaks (only if not a chroma-suppressed screen capture with high human confidence)
         if spectral_metrics["spectral_anomaly_detected"]:
-            heuristic_score += 38.0
-            detected_artifacts.append(
-                f"Spectral Frequency Grid Anomaly: Detected {spectral_metrics['periodic_grid_peaks']} periodic high-frequency checkerboard peaks indicative of generative diffusion/GAN upsampling."
-            )
+            if vae_corr["is_chroma_suppressed"]:
+                detected_artifacts.append(
+                    f"Physical Screen Moiré Pattern: Detected {spectral_metrics['periodic_grid_peaks']} periodic peaks characteristic of physical LCD monitor subpixel interference during camera capture."
+                )
+            else:
+                heuristic_score += 38.0
+                detected_artifacts.append(
+                    f"Spectral Frequency Grid Anomaly: Detected {spectral_metrics['periodic_grid_peaks']} periodic high-frequency checkerboard peaks indicative of generative diffusion/GAN upsampling."
+                )
         
         # Evaluate ELA Compression Disparity
-        if ela_var > 450.0:
-            heuristic_score += 30.0
-            detected_artifacts.append(
-                f"Compression Error Disparity (ELA): Extreme localized compression variance (var={ela_var:.1f}) indicates synthetic inpainting or composite manipulation."
-            )
-        elif ela_mean < 1.4 and ela_var < 15.0:
-            heuristic_score += 24.0
-            detected_artifacts.append(
-                "Synthetic Gradient Smoothness: Abnormally low compression error level characteristic of AI-generated continuous latent space."
-            )
+        if not vae_corr["is_chroma_suppressed"]:
+            if ela_var > 450.0:
+                heuristic_score += 30.0
+                detected_artifacts.append(
+                    f"Compression Error Disparity (ELA): Localized compression variance (var={ela_var:.1f}) indicates synthetic inpainting or composite manipulation."
+                )
+            elif ela_mean < 1.4 and ela_var < 15.0:
+                heuristic_score += 24.0
+                detected_artifacts.append(
+                    "Synthetic Gradient Smoothness: Abnormally low compression error level characteristic of AI-generated continuous latent space."
+                )
             
         # Evaluate Sensor Noise (PRNU)
-        if sensor_noise["unnatural_noise_profile"]:
+        if not vae_corr["is_chroma_suppressed"] and sensor_noise["unnatural_noise_profile"]:
             heuristic_score += 22.0
             detected_artifacts.append(
                 f"Camera Sensor PRNU Absence: Missing physical CMOS/CCD sensor noise signature (measured variance={sensor_noise['noise_variance']})."
@@ -302,11 +347,14 @@ async def detect_media(file: UploadFile = File(...)):
             
         # Combine Neural & Mathematical Scores
         if neural_prob is not None:
-            # If VAE or spectral confirms AI, enforce floor
-            if vae_corr["is_vae_synthetic"]:
-                final_ai_prob = max(neural_prob, min(97.5, heuristic_score))
+            # If Neural Vision Transformer is highly confident in REAL/HUMAN (human >= 75%),
+            # heuristic peaks from physical screen moiré or text MUST NOT override it to AI!
+            if neural_label == "REAL" and neural_prob <= 25.0:
+                final_ai_prob = min(20.0, neural_prob)
+            elif neural_label == "AI_GENERATED" and neural_prob >= 75.0:
+                final_ai_prob = max(neural_prob, min(98.5, heuristic_score))
             else:
-                final_ai_prob = (neural_prob * 0.60) + (min(100.0, heuristic_score) * 0.40)
+                final_ai_prob = (neural_prob * 0.70) + (min(100.0, heuristic_score) * 0.30)
             analysis_method = "NEURAL_TRANSFORMER_AND_SPECTRAL_ENSEMBLE"
         else:
             final_ai_prob = min(98.5, heuristic_score)
@@ -339,7 +387,7 @@ async def detect_media(file: UploadFile = File(...)):
             verdict_label = "AUTHENTIC_MEDIA"
             confidence = round(100.0 - final_ai_prob, 1)
             summary = (
-                "Verified authentic pixel profile. Consistent physical camera sensor noise (PRNU) and natural 1/f spatial frequency distribution."
+                "Verified authentic pixel profile. Consistent physical camera sensor noise (PRNU) and natural spatial frequency distribution."
             )
             
         return JSONResponse({

@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
             } else if (forensicReport.verdict === "SCRUBBED_METADATA" && pixelData.verdict_label === "AUTHENTIC_MEDIA") {
               forensicReport.verdict = "AUTHENTIC_MEDIA";
               forensicReport.confidenceScore = Math.round(pixelData.confidence);
-              forensicReport.summaryExplanation = "Verified authentic pixel structure: natural camera sensor noise (PRNU) and continuous frequency spectrum observed.";
+              forensicReport.summaryExplanation = pixelData.summary_explanation || "Verified authentic pixel profile. Consistent physical camera sensor noise and natural spatial frequency distribution.";
             }
           }
 
@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
             } else if (forensicReport.verdict === "SCRUBBED_METADATA" && nativeResult.verdictLabel === "AUTHENTIC_MEDIA") {
               forensicReport.verdict = "AUTHENTIC_MEDIA";
               forensicReport.confidenceScore = Math.round(nativeResult.confidence);
-              forensicReport.summaryExplanation = "Verified authentic pixel structure: natural camera sensor noise separation observed.";
+              forensicReport.summaryExplanation = nativeResult.explanation;
             }
           }
 
