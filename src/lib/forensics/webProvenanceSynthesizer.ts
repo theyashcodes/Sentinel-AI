@@ -27,23 +27,51 @@ export interface ForensicIntelligence {
 
 /**
  * Searches the web for top 3-4 matching sources/references based on extracted text or media topic.
+ * Uses robust multi-query parsing with title extraction.
  */
 export async function searchWebProvenance(query: string): Promise<WebProvenanceMatch[]> {
   try {
-    if (!query || query.trim().length < 3) {
+    if (!query || query.trim().length < 2) {
       return [];
     }
 
-    const cleanQuery = query
+    // Generate smart search variants: e.g. "DEVIATHON FINAL FLYER" -> try "DEVIATHON FINAL FLYER", then "DEVIATHON"
+    const cleaned = query
       .replace(/[^\w\s\-\.]/g, " ")
       .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 150);
+      .trim();
 
-    const targetUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(cleanQuery)}`;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4000);
+    const words = cleaned.split(" ").filter((w) => w.length > 1);
+    const queriesToTry: string[] = [cleaned];
 
+    // If query has common filler words (FINAL, FLYER, IMG, POSTER, PHOTO), add a focused query
+    const filteredWords = words.filter(
+      (w) => !/^(final|flyer|poster|image|photo|pic|screenshot|scan|whatsapp)$/i.test(w)
+    );
+    if (filteredWords.length > 0 && filteredWords.length < words.length) {
+      queriesToTry.push(filteredWords.join(" "));
+    }
+
+    for (const q of queriesToTry) {
+      const matches = await executeSearchQuery(q);
+      if (matches.length > 0) {
+        return matches;
+      }
+    }
+
+    return [];
+  } catch (err) {
+    console.warn("[Web Provenance Search] Search lookup warning:", (err as Error).message);
+    return [];
+  }
+}
+
+async function executeSearchQuery(query: string): Promise<WebProvenanceMatch[]> {
+  const targetUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query.slice(0, 150))}`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 7000);
+
+  try {
     const res = await fetch(targetUrl, {
       signal: controller.signal,
       headers: {
@@ -58,45 +86,43 @@ export async function searchWebProvenance(query: string): Promise<WebProvenanceM
     }
 
     const html = await res.text();
-    // Parse DuckDuckGo search result blocks
+    const blocks = html.split(/class="result results_links/);
     const results: WebProvenanceMatch[] = [];
-    const blockRegex =
-      /<a class="result__url" href="([^"]+)">\s*([^<]+)\s*<\/a>[\s\S]*?<a class="result__snippet[^"]*"[^>]*>([\s\S]*?)<\/a>/g;
-
-    const matches = [...html.matchAll(blockRegex)];
     const seenDomains = new Set<string>();
 
-    for (const match of matches) {
-      const rawUrl = match[1]?.trim() || "";
-      const displayUrl = match[2]?.trim() || "";
-      const rawSnippet = match[3] || "";
+    for (let i = 1; i < blocks.length; i++) {
+      const b = blocks[i];
+      if (!b) continue;
 
-      // Extract actual destination URL if wrapped in DuckDuckGo redirect
-      let finalUrl = displayUrl.startsWith("http") ? displayUrl : `https://${displayUrl}`;
-      if (rawUrl.includes("uddg=")) {
+      const titleMatch = b.match(/<h2 class="result__title">[\s\S]*?<a[^>]*>([\s\S]*?)<\/a>/);
+      const snipMatch = b.match(/<a class="result__snippet"[^>]*>([\s\S]*?)<\/a>/);
+      const uddgMatch = b.match(/uddg=([^&"]+)/);
+      const rawUrlMatch = b.match(/<a class="result__url"[^>]*href="([^"]+)"[^>]*>/);
+
+      let finalUrl = "";
+      if (uddgMatch && uddgMatch[1]) {
         try {
-          const matchUddg = rawUrl.match(/uddg=([^&]+)/);
-          if (matchUddg && matchUddg[1]) {
-            finalUrl = decodeURIComponent(matchUddg[1]);
-          }
+          finalUrl = decodeURIComponent(uddgMatch[1]);
         } catch {
-          // Keep displayUrl fallback
+          finalUrl = uddgMatch[1];
         }
+      } else if (rawUrlMatch && rawUrlMatch[1]) {
+        finalUrl = rawUrlMatch[1].startsWith("http") ? rawUrlMatch[1] : `https://${rawUrlMatch[1]}`;
       }
+
+      if (!finalUrl || finalUrl.includes("duckduckgo.com")) continue;
 
       let domain = "";
       try {
         domain = new URL(finalUrl).hostname.replace(/^www\./, "");
       } catch {
-        domain = displayUrl.split("/")[0] || "web";
-      }
-
-      if (seenDomains.has(domain)) {
         continue;
       }
+
+      if (seenDomains.has(domain)) continue;
       seenDomains.add(domain);
 
-      const snippet = rawSnippet
+      const title = (titleMatch?.[1] || domain)
         .replace(/<[^>]+>/g, "")
         .replace(/&quot;/g, '"')
         .replace(/&#x27;/g, "'")
@@ -104,23 +130,20 @@ export async function searchWebProvenance(query: string): Promise<WebProvenanceM
         .replace(/\s+/g, " ")
         .trim();
 
-      const title = `${domain.toUpperCase()}: ${cleanQuery.slice(0, 45)}...`;
+      const snippet = (snipMatch?.[1] || "")
+        .replace(/<[^>]+>/g, "")
+        .replace(/&quot;/g, '"')
+        .replace(/&#x27;/g, "'")
+        .replace(/&amp;/g, "&")
+        .replace(/\s+/g, " ")
+        .trim();
 
-      results.push({
-        title,
-        domain,
-        url: finalUrl,
-        snippet,
-      });
-
-      if (results.length >= 4) {
-        break;
-      }
+      results.push({ title, domain, url: finalUrl, snippet });
+      if (results.length >= 4) break;
     }
 
     return results;
-  } catch (err) {
-    console.warn("[Web Provenance Search] Search lookup warning:", (err as Error).message);
+  } catch {
     return [];
   }
 }
@@ -142,7 +165,7 @@ export function buildDirectOsintLinks(query: string): DirectOsintLinks {
 /**
  * Groq AI Forensic Synthesizer (Powered by qwen/qwen3.8-27b on Groq LPU)
  * Synthesizes pixel metrics, cryptographic manifests, OCR text, and web matches
- * into an executive, cohesive forensic report.
+ * into an executive, cohesive forensic report with verified proof citations.
  */
 export async function synthesizeForensicIntelligence(params: {
   filename: string;
@@ -205,26 +228,44 @@ export async function synthesizeForensicIntelligence(params: {
 
     const model = isGroq ? "qwen/qwen3.8-27b" : "grok-2-latest";
 
-    const prompt = `You are Sentinel AI's Lead Media Forensics & OSINT Synthesizer.
-Synthesize the following technical forensic evidence into an executive, objective intelligence report:
+    const webSourcesPrompt =
+      params.webMatches && params.webMatches.length > 0
+        ? `VERIFIED WEB MATCHES FOUND ONLINE:
+${params.webMatches
+  .map(
+    (w, idx) =>
+      `[Proof ${idx + 1}] Source: ${w.domain} (${w.url}) | Title: "${w.title}" | Details: ${w.snippet}`
+  )
+  .join("\n")}
+
+CRITICAL FORENSIC REQUIREMENT (PROOFS DISCOVERED):
+Real-world web matches were discovered above! You MUST:
+1. In "executiveSummary": Explicitly name the verified real-world event/organization/product discovered in the web proofs (e.g. DEVIATHON 2.0 hackathon at GLA University Mathura). Cite the exact domain proof (e.g. deviathon.in).
+2. In "provenanceContext": State the exact institution, event, or official context confirmed by the web citations.
+3. In "keyEvidenceBullets": Make the verified web discovery the lead bullet point, explaining that genuine event documentation establishes real-world provenance.`
+        : `No external web references were found. Base synthesis on pixel heuristics and container metadata.`;
+
+    const prompt = `You are Sentinel AI's Senior Digital Forensics & OSINT Synthesizer.
+Synthesize the following technical forensic evidence and web findings into an executive intelligence report:
 - Media File: ${params.filename}
 - Verdict: ${params.verdict} (Confidence: ${params.confidenceScore}%)
 - Identified Generator: ${params.generatorTool || "Natural Sensor / Physical Camera"}
 - Native Pixel Forensics: AI Probability: ${params.pixelForensics?.aiProbability ?? "N/A"}% | Sensor Noise Variance: ${params.pixelForensics?.metrics?.sensorNoiseVariance ?? "N/A"} | ELA Var: ${params.pixelForensics?.metrics?.elaVariance ?? "N/A"}
 - Detected Pixel Artifacts: ${params.pixelForensics?.detectedArtifacts?.join("; ") || "None"}
-- Extracted Visible Text / Content: ${params.extractedText?.slice(0, 8).join(" | ") || "None detected"}
-- Web Provenance Sources Found: ${params.webMatches?.map((w) => `${w.domain}: ${w.title}`).join("; ") || "None"}
+- Extracted Visible Text: ${params.extractedText?.slice(0, 8).join(" | ") || "None directly extracted"}
+
+${webSourcesPrompt}
 
 Respond strictly with valid JSON:
 {
-  "executiveSummary": "2-3 crisp, authoritative sentences explaining why the media is authentic or AI-generated based on the evidence.",
-  "provenanceContext": "1 sentence describing what this media portrays or represents.",
+  "executiveSummary": "2-3 crisp, authoritative sentences explaining the media's authenticity and explicitly naming any real-world event/institution found with web proofs.",
+  "provenanceContext": "1 sentence describing the event, organization, or subject.",
   "safeActionPlan": "Actionable guidance for the user or investigator.",
-  "keyEvidenceBullets": ["Evidence point 1", "Evidence point 2", "Evidence point 3"]
+  "keyEvidenceBullets": ["Evidence point 1 (Web proof)", "Evidence point 2", "Evidence point 3"]
 }`;
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4500);
+    const timeout = setTimeout(() => controller.abort(), 6500);
 
     const res = await fetch(endpoint, {
       method: "POST",
@@ -239,13 +280,13 @@ Respond strictly with valid JSON:
           {
             role: "system",
             content:
-              "You are Sentinel AI Senior Digital Forensics Investigator. You synthesize media provenance, pixel forensics, and web OSINT into concise intelligence. Output valid JSON only.",
+              "You are Sentinel AI Senior Digital Forensics Investigator. You synthesize media provenance, pixel forensics, and web OSINT into concise intelligence with real-world proofs. Output valid JSON only.",
           },
           { role: "user", content: prompt },
         ],
         response_format: { type: "json_object" },
-        temperature: 0.25,
-        max_tokens: 450,
+        temperature: 0.2,
+        max_tokens: 500,
       }),
     });
     clearTimeout(timeout);

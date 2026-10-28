@@ -960,10 +960,24 @@ export function MediaForensicsView() {
                           transition: "border-color 0.15s ease",
                         }}
                       >
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                          <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--accent)", display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem" }}>
+                          <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--ink)", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                            {match.title}
+                            <ExternalLink style={{ width: "12px", height: "12px", color: "var(--accent)", flexShrink: 0 }} />
+                          </span>
+                          <span
+                            style={{
+                              fontSize: "10px",
+                              padding: "0.15rem 0.45rem",
+                              borderRadius: "4px",
+                              backgroundColor: "rgba(99, 102, 241, 0.08)",
+                              color: "var(--accent)",
+                              border: "1px solid rgba(99, 102, 241, 0.2)",
+                              fontWeight: 600,
+                              flexShrink: 0,
+                            }}
+                          >
                             {match.domain}
-                            <ExternalLink style={{ width: "11px", height: "11px" }} />
                           </span>
                         </div>
                         <p style={{ margin: 0, fontSize: "11px", color: "var(--ink-secondary)", lineHeight: "1.4" }}>
