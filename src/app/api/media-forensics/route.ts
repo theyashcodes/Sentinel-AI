@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { analyzeMediaProvenance } from "@/lib/forensics/mediaParser";
 import { analyzePixelsNative } from "@/lib/forensics/nativePixelAnalyzer";
+import {
+  searchWebProvenance,
+  synthesizeForensicIntelligence,
+} from "@/lib/forensics/webProvenanceSynthesizer";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +32,8 @@ export async function POST(req: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
+    let extractedText: string[] = [];
+
     // 1. Run Metadata & Provenance Engine (C2PA, SynthID, EXIF, XMP)
     const forensicReport = await analyzeMediaProvenance(buffer, file.name);
 
@@ -52,6 +58,9 @@ export async function POST(req: NextRequest) {
 
         if (pixelRes.ok) {
           const pixelData = await pixelRes.json();
+          if (Array.isArray(pixelData.extracted_text) && pixelData.extracted_text.length > 0) {
+            extractedText = pixelData.extracted_text;
+          }
           forensicReport.pixelForensics = {
             analyzed: true,
             method: pixelData.analysis_method,
@@ -149,6 +158,31 @@ export async function POST(req: NextRequest) {
           }
         }
       }
+    }
+
+    // 3. Web Provenance & Groq Forensic Intelligence Synthesis
+    try {
+      const queryCandidate =
+        extractedText.length > 0
+          ? extractedText.slice(0, 4).join(" ")
+          : file.name.replace(/\.[a-zA-Z0-9]+$/, "").replace(/[\-_]/g, " ");
+
+      const webMatches = await searchWebProvenance(queryCandidate);
+      const intelligence = await synthesizeForensicIntelligence({
+        filename: file.name,
+        verdict: forensicReport.verdict,
+        confidenceScore: forensicReport.confidenceScore,
+        generatorTool: forensicReport.generatorTool,
+        pixelForensics: forensicReport.pixelForensics,
+        extractedText: extractedText.length > 0 ? extractedText : undefined,
+        webMatches,
+      });
+
+      if (intelligence) {
+        forensicReport.intelligence = intelligence;
+      }
+    } catch (intelErr) {
+      console.warn("[Media Forensics Intelligence] Synthesis error:", (intelErr as Error).message);
     }
 
     return NextResponse.json(forensicReport);

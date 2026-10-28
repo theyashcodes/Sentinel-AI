@@ -54,6 +54,26 @@ export interface ForensicResult {
     detectedArtifacts?: string[];
     explanation?: string;
   };
+  intelligence?: {
+    executiveSummary: string;
+    provenanceContext: string;
+    safeActionPlan: string;
+    keyEvidenceBullets: string[];
+    extractedText?: string[];
+    webMatches: Array<{
+      title: string;
+      domain: string;
+      url: string;
+      snippet: string;
+    }>;
+    directOsintLinks: {
+      googleSearch: string;
+      googleLens: string;
+      tinEye: string;
+      bingVisual: string;
+      yandexImages: string;
+    };
+  };
   summaryExplanation: string;
 }
 

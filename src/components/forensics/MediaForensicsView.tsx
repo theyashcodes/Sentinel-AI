@@ -21,6 +21,9 @@ import {
   Activity,
   Eye,
   Grid,
+  Globe,
+  Search,
+  ExternalLink,
 } from "lucide-react";
 import { analyzeMediaProvenance, type ForensicResult } from "@/lib/forensics/mediaParser";
 import { notifyCyBroScanComplete } from "@/lib/cybro/events";
@@ -129,7 +132,7 @@ export function MediaForensicsView() {
           });
           if (serverRes.ok) {
             const serverReport = await serverRes.json();
-            if (serverReport && serverReport.pixelForensics) {
+            if (serverReport && (serverReport.pixelForensics || serverReport.intelligence)) {
               data = serverReport;
             }
           }
@@ -804,6 +807,228 @@ export function MediaForensicsView() {
                   </span>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* ── 2.5 AI Forensic Intelligence & Web Provenance (Groq Synthesizer) ── */}
+          {result.intelligence && (
+            <div
+              className="void-panel"
+              style={{
+                padding: "1.5rem",
+                display: "flex",
+                flexDirection: "column",
+                gap: "1.25rem",
+                borderLeft: "3px solid var(--accent)",
+              }}
+            >
+              {/* Header */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <Sparkles style={{ width: "16px", height: "16px", color: "var(--accent)" }} />
+                  <span className="label" style={{ color: "var(--ink)", fontWeight: 600 }}>
+                    AI Forensic Intelligence & Web Provenance
+                  </span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <span
+                    className="tag"
+                    style={{
+                      fontSize: "10px",
+                      padding: "0.2rem 0.5rem",
+                      borderRadius: "4px",
+                      backgroundColor: "rgba(99, 102, 241, 0.1)",
+                      color: "var(--accent)",
+                      border: "1px solid rgba(99, 102, 241, 0.3)",
+                      fontWeight: 600,
+                    }}
+                  >
+                    GROQ LPU SYNTHESIS
+                  </span>
+                  {result.intelligence.extractedText && result.intelligence.extractedText.length > 0 && (
+                    <span
+                      className="tag"
+                      style={{
+                        fontSize: "10px",
+                        padding: "0.2rem 0.5rem",
+                        borderRadius: "4px",
+                        backgroundColor: "rgba(34, 197, 94, 0.1)",
+                        color: "var(--ok)",
+                        border: "1px solid rgba(34, 197, 94, 0.3)",
+                      }}
+                    >
+                      OCR EXTRACTED
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Executive Summary */}
+              <div
+                style={{
+                  padding: "1rem",
+                  backgroundColor: "var(--ground-secondary)",
+                  borderRadius: "8px",
+                  border: "1px solid var(--wire)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.5rem",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <ShieldCheck style={{ width: "14px", height: "14px", color: "var(--ok)" }} />
+                  <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--ink)", letterSpacing: "0.05em" }}>
+                    EXECUTIVE FORENSIC SUMMARY
+                  </span>
+                </div>
+                <p style={{ margin: 0, fontSize: "13px", lineHeight: "1.6", color: "var(--ink)" }}>
+                  {result.intelligence.executiveSummary}
+                </p>
+                {result.intelligence.provenanceContext && (
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem", marginTop: "0.25rem", paddingTop: "0.5rem", borderTop: "1px solid var(--wire-subtle)" }}>
+                    <span style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 600 }}>Subject Context:</span>
+                    <span style={{ fontSize: "12px", color: "var(--ink-secondary)" }}>{result.intelligence.provenanceContext}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Key Evidence & Safe Action Plan Grid */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1rem" }}>
+                {/* Evidence bullets */}
+                <div
+                  style={{
+                    padding: "0.85rem",
+                    backgroundColor: "var(--ground-secondary)",
+                    borderRadius: "6px",
+                    border: "1px solid var(--wire)",
+                  }}
+                >
+                  <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--muted)", display: "block", marginBottom: "0.5rem" }}>
+                    KEY FORENSIC EVIDENCE POINTS
+                  </span>
+                  <ul style={{ margin: 0, paddingLeft: "1.1rem", display: "flex", flexDirection: "column", gap: "0.4rem", fontSize: "12px", color: "var(--ink-secondary)" }}>
+                    {result.intelligence.keyEvidenceBullets.map((bullet, idx) => (
+                      <li key={idx} style={{ lineHeight: "1.4" }}>{bullet}</li>
+                    ))}
+                  </ul>
+                </div>
+
+                {/* Action Plan */}
+                <div
+                  style={{
+                    padding: "0.85rem",
+                    backgroundColor: "var(--ground-secondary)",
+                    borderRadius: "6px",
+                    border: "1px solid var(--wire)",
+                  }}
+                >
+                  <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--muted)", display: "block", marginBottom: "0.5rem" }}>
+                    RECOMMENDED ACTION PLAN
+                  </span>
+                  <p style={{ margin: 0, fontSize: "12px", lineHeight: "1.5", color: "var(--ink-secondary)" }}>
+                    {result.intelligence.safeActionPlan}
+                  </p>
+                </div>
+              </div>
+
+              {/* Matching Web References (Reverse Search Matches) */}
+              {result.intelligence.webMatches && result.intelligence.webMatches.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <Globe style={{ width: "14px", height: "14px", color: "var(--accent)" }} />
+                    <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--ink)", letterSpacing: "0.05em" }}>
+                      MATCHING WEB REFERENCES & MEDIA CITATIONS ({result.intelligence.webMatches.length})
+                    </span>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                    {result.intelligence.webMatches.map((match, mIdx) => (
+                      <a
+                        key={mIdx}
+                        href={match.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          padding: "0.75rem",
+                          backgroundColor: "var(--ground-secondary)",
+                          border: "1px solid var(--wire)",
+                          borderRadius: "6px",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.25rem",
+                          textDecoration: "none",
+                          transition: "border-color 0.15s ease",
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                          <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--accent)", display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                            {match.domain}
+                            <ExternalLink style={{ width: "11px", height: "11px" }} />
+                          </span>
+                        </div>
+                        <p style={{ margin: 0, fontSize: "11px", color: "var(--ink-secondary)", lineHeight: "1.4" }}>
+                          {match.snippet}
+                        </p>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 1-Click Direct OSINT Verification Deep Links */}
+              {result.intelligence.directOsintLinks && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", paddingTop: "0.5rem", borderTop: "1px solid var(--wire)" }}>
+                  <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--muted)", letterSpacing: "0.05em" }}>
+                    1-CLICK REVERSE IMAGE SEARCH & OSINT VERIFICATION
+                  </span>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+                    <a
+                      href={result.intelligence.directOsintLinks.googleSearch}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-ghost"
+                      style={{ padding: "0.35rem 0.65rem", fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "0.35rem" }}
+                    >
+                      <Search style={{ width: "12px", height: "12px", color: "var(--accent)" }} />
+                      Google Search
+                      <ExternalLink style={{ width: "10px", height: "10px" }} />
+                    </a>
+                    <a
+                      href={result.intelligence.directOsintLinks.googleLens}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-ghost"
+                      style={{ padding: "0.35rem 0.65rem", fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "0.35rem" }}
+                    >
+                      <Camera style={{ width: "12px", height: "12px", color: "var(--ok)" }} />
+                      Google Lens
+                      <ExternalLink style={{ width: "10px", height: "10px" }} />
+                    </a>
+                    <a
+                      href={result.intelligence.directOsintLinks.tinEye}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-ghost"
+                      style={{ padding: "0.35rem 0.65rem", fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "0.35rem" }}
+                    >
+                      <Globe style={{ width: "12px", height: "12px", color: "var(--warn)" }} />
+                      TinEye Duplicates
+                      <ExternalLink style={{ width: "10px", height: "10px" }} />
+                    </a>
+                    <a
+                      href={result.intelligence.directOsintLinks.bingVisual}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-ghost"
+                      style={{ padding: "0.35rem 0.65rem", fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "0.35rem" }}
+                    >
+                      <Eye style={{ width: "12px", height: "12px", color: "var(--accent)" }} />
+                      Bing Visual Search
+                      <ExternalLink style={{ width: "10px", height: "10px" }} />
+                    </a>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

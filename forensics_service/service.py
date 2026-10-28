@@ -54,6 +54,32 @@ def try_load_neural_model():
     except Exception as e:
         logger.warning(f"Neural vision model initialization deferred (will use mathematical spectral+ELA ensemble): {e}")
 
+ocr_reader = None
+
+def get_ocr_reader():
+    global ocr_reader
+    if ocr_reader is None:
+        try:
+            import easyocr
+            ocr_reader = easyocr.Reader(["en"], gpu=False)
+            logger.info("EasyOCR optical character recognition engine loaded.")
+        except Exception as ocr_err:
+            logger.warning(f"EasyOCR initialization deferred: {ocr_err}")
+    return ocr_reader
+
+def extract_text_from_image(img: Image.Image) -> List[str]:
+    try:
+        reader = get_ocr_reader()
+        if reader is None:
+            return []
+        arr = np.array(img.convert("RGB"))
+        results = reader.readtext(arr, detail=0)
+        clean = [r.strip() for r in results if r and len(r.strip()) > 2]
+        return clean[:10]
+    except Exception as e:
+        logger.warning(f"OCR text extraction failed: {e}")
+        return []
+
 @app.on_event("startup")
 async def startup_event():
     # Attempt non-blocking model load in background if transformers is installed
@@ -390,6 +416,9 @@ async def detect_media(file: UploadFile = File(...)):
                 "Verified authentic pixel profile. Consistent physical camera sensor noise (PRNU) and natural spatial frequency distribution."
             )
             
+        # 5. Optical Character Recognition (OCR) for Web Provenance Matching
+        extracted_text = extract_text_from_image(image)
+
         return JSONResponse({
             "is_ai": is_ai,
             "ai_probability": final_ai_prob,
@@ -397,6 +426,7 @@ async def detect_media(file: UploadFile = File(...)):
             "verdict_label": verdict_label,
             "analysis_method": analysis_method,
             "detected_artifacts": detected_artifacts,
+            "extracted_text": extracted_text,
             "ela_heatmap_base64": ela_heatmap_base64,
             "fft_spectrum_base64": fft_spectrum_base64,
             "metrics": {
