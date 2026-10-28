@@ -103,6 +103,7 @@ export function CyBroWidget() {
         },
       ];
       setMessages(fresh);
+      setCurrentMood("smug");
       try {
         localStorage.removeItem(`sentinel_cybro_chat_${userId}`);
       } catch {

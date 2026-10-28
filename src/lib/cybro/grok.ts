@@ -52,14 +52,13 @@ COMPLETE SENTINEL AI PLATFORM KNOWLEDGE:
 8. API Keys & Webhooks (/dashboard/projects & /dashboard/api-keys): REST APIs for automated security pipeline integration.
 9. Settings & Themes (/dashboard/settings): Switch between Dark Void & Quantum Daylight themes, choose between 6 robotic skins (Classic, Matrix, Mecha, Gold, Kawaii, Phantom), adjust sensitivity, and manage CyBro visibility.
 
-End your reply with this exact metadata line:
-<!--METADATA:{"threatDetected":true|false,"mood":"happy"|"angry"|"smug"|"idle"}-->
+CRITICAL MOOD & THREAT DETERMINATION RULES:
+- "smug": DEFAULT CONVERSATIONAL MOOD! Use for all general chit-chat, answering questions about Yash Gupta, explaining Sentinel AI tools, cyber security tips, or educational context.
+- "happy": Target is verified clean, safe link/email, positive security confirmation.
+- "angry": ONLY and STRICTLY when an actual threat, scam link, phishing attempt, or fake asset was analyzed and confirmed MALICIOUS. NEVER use "angry" for general questions, creator queries, or feature explanations!
 
-Mood guide:
-- "happy": Verified clean, authentic, safe target, positive cyber confirmation.
-- "angry": Tactical red alert for malicious threats, fake domains, phishing, deepfakes.
-- "smug": Witty banter, explaining features, security advice, roasting scam tactics.
-- "idle": Calm, neutral ready state.`;
+End your reply with this exact metadata line:
+<!--METADATA:{"threatDetected":true|false,"mood":"happy"|"angry"|"smug"|"idle"}-->`;
 
 /**
  * Call Groq (GroqCloud) or Grok (xAI) API
@@ -147,29 +146,46 @@ When the user asks questions regarding this scan (such as "What makes this safe?
       } catch {
         // use fallback
       }
-    } else {
-      // Heuristic fallback if model omitted the tag
-      const lower = rawContent.toLowerCase();
-      if (
-        lower.includes("scam") ||
-        lower.includes("fraud") ||
-        lower.includes("phishing") ||
-        lower.includes("red alert") ||
-        lower.includes("fake") ||
-        lower.includes("danger")
-      ) {
+    }
+
+    // Safety Guard: Questions about creator/features or general conversation should NEVER trigger angry alert
+    const lastUserMessage = [...messages].reverse().find((m) => m.role === "user")?.content?.toLowerCase() || "";
+    const isConversational =
+      lastUserMessage.includes("who created") ||
+      lastUserMessage.includes("who made") ||
+      lastUserMessage.includes("developer") ||
+      lastUserMessage.includes("yash") ||
+      lastUserMessage.includes("what is sentinel") ||
+      lastUserMessage.includes("features") ||
+      lastUserMessage.includes("tools") ||
+      lastUserMessage.includes("hello") ||
+      lastUserMessage.includes("hi") ||
+      lastUserMessage.includes("kaise ho");
+
+    if (isConversational) {
+      threatDetected = false;
+      mood = "smug";
+    } else if (!metaMatch) {
+      // Heuristic fallback ONLY if model omitted the tag
+      const hasExplicitThreatVerdict =
+        cleanReply.includes("VERDICT: THREAT DETECTED") ||
+        cleanReply.includes("VERDICT: SCAM DETECTED") ||
+        cleanReply.includes("[THREAT DETECTED]") ||
+        cleanReply.includes("[SCAM");
+
+      const hasExplicitSafeVerdict =
+        cleanReply.includes("VERDICT: VERIFIED SAFE") ||
+        cleanReply.includes("VERDICT: SAFE") ||
+        cleanReply.includes("[SAFE]");
+
+      if (hasExplicitThreatVerdict) {
         threatDetected = true;
         mood = "angry";
-      } else if (
-        lower.includes("safe") ||
-        lower.includes("clean") ||
-        lower.includes("genuine") ||
-        lower.includes("authentic") ||
-        lower.includes("badhai")
-      ) {
+      } else if (hasExplicitSafeVerdict) {
         threatDetected = false;
         mood = "happy";
       } else {
+        threatDetected = false;
         mood = "smug";
       }
     }
