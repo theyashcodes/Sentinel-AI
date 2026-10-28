@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { analyzeMediaProvenance } from "@/lib/forensics/mediaParser";
+import { analyzePixelsNative } from "@/lib/forensics/nativePixelAnalyzer";
 
 export const dynamic = "force-dynamic";
 
@@ -99,8 +100,54 @@ export async function POST(req: NextRequest) {
           }
         }
       } catch (serviceErr) {
-        // Microservice unavailable or timed out; metadata analysis remains intact
-        console.warn("[Pixel Forensics Service] Microservice unreachable, using metadata analysis only:", (serviceErr as Error).message);
+        // Microservice unavailable or timed out (e.g. running on Vercel serverless)
+        console.warn("[Pixel Forensics Service] Microservice unreachable, falling back to Native In-Engine Pixel Forensics:", (serviceErr as Error).message);
+      }
+
+      // Native In-Engine Zero-Metadata Pixel Forensics Fallback
+      if (!forensicReport.pixelForensics) {
+        const nativeResult = analyzePixelsNative(buffer, file.name);
+        if (nativeResult) {
+          forensicReport.pixelForensics = {
+            analyzed: true,
+            method: "NATIVE_VAE_RESIDUAL_CORRELATION_ENGINE",
+            aiProbability: nativeResult.aiProbability,
+            isAi: nativeResult.isAi,
+            verdictLabel: nativeResult.verdictLabel,
+            metrics: {
+              sensorNoiseVariance: nativeResult.noiseVariance,
+              neuralModelConsulted: false,
+            },
+            detectedArtifacts: nativeResult.detectedArtifacts,
+            explanation: nativeResult.explanation,
+          };
+
+          if (
+            forensicReport.verdict === "SCRUBBED_METADATA" ||
+            forensicReport.verdict === "AUTHENTIC_MEDIA"
+          ) {
+            if (nativeResult.isAi) {
+              forensicReport.verdict = nativeResult.verdictLabel;
+              forensicReport.confidenceScore = Math.max(forensicReport.confidenceScore, Math.round(nativeResult.confidence));
+              forensicReport.generatorTool = "Generative AI Model (Latent Diffusion VAE Decoder)";
+              forensicReport.summaryExplanation = nativeResult.explanation;
+            } else if (forensicReport.verdict === "SCRUBBED_METADATA" && nativeResult.verdictLabel === "AUTHENTIC_MEDIA") {
+              forensicReport.verdict = "AUTHENTIC_MEDIA";
+              forensicReport.confidenceScore = Math.round(nativeResult.confidence);
+              forensicReport.summaryExplanation = "Verified authentic pixel structure: natural camera sensor noise separation observed.";
+            }
+          }
+
+          if (nativeResult.detectedArtifacts.length > 0) {
+            for (const artifact of nativeResult.detectedArtifacts) {
+              forensicReport.technicalEvidence.unshift({
+                category: "PIXEL_ANALYSIS",
+                status: nativeResult.isAi ? "CRITICAL_AI" : "INFO",
+                detail: artifact,
+              });
+            }
+          }
+        }
       }
     }
 
