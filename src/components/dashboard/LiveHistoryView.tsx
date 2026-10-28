@@ -13,9 +13,14 @@ import {
   GitFork,
   RefreshCw,
   FileText,
+  Star,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { ForensicReportModal } from "@/components/forensics/ForensicReportModal";
 import { ForensicReportData } from "@/lib/forensics/reportGenerator";
+import { ScanFeedbackWidget } from "@/components/feedback/ScanFeedbackWidget";
+import { FeedbackTool } from "@/lib/feedback/types";
 
 interface LiveHistoryViewProps {
   initialScans: any[];
@@ -37,6 +42,7 @@ export function LiveHistoryView({ initialScans }: LiveHistoryViewProps) {
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
   const [selectedReport, setSelectedReport] = useState<ForensicReportData | null>(null);
+  const [expandedFeedbackScanId, setExpandedFeedbackScanId] = useState<string | null>(null);
 
   const fetchLiveScans = useCallback(async (showIndicator = false) => {
     if (showIndicator) setIsSyncing(true);
@@ -128,6 +134,36 @@ export function LiveHistoryView({ initialScans }: LiveHistoryViewProps) {
       return <QrCode style={{ width: "15px", height: "15px", color: "var(--accent)", flexShrink: 0 }} />;
     }
     return <Search style={{ width: "15px", height: "15px", color: "var(--accent)", flexShrink: 0 }} />;
+  };
+
+  const getToolForScan = (scan: any): FeedbackTool => {
+    const type = (scan.type || "").toUpperCase();
+    const provider = (scan.result?.aiProvider || "").toUpperCase();
+    const payload = (scan.payload || "").toLowerCase();
+
+    if (
+      provider.includes("VOICE") ||
+      payload.endsWith(".mp3") ||
+      payload.endsWith(".wav") ||
+      payload.endsWith(".webm") ||
+      payload.includes("mic-recording")
+    ) {
+      return "voice-forensics";
+    }
+    if (
+      provider.includes("MEDIA") ||
+      type === "FILE" ||
+      payload.endsWith(".jpg") ||
+      payload.endsWith(".png") ||
+      payload.endsWith(".webp") ||
+      payload.endsWith(".jpeg")
+    ) {
+      return "media-forensics";
+    }
+    if (type === "QR" || provider.includes("QR")) {
+      return "qr-scanner";
+    }
+    return "url-scanner";
   };
 
   const openReportForScan = (scan: any) => {
@@ -226,7 +262,7 @@ export function LiveHistoryView({ initialScans }: LiveHistoryViewProps) {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1.7fr 80px 105px 95px 135px 120px",
+              gridTemplateColumns: "1.5fr 75px 100px 90px 130px 170px",
               padding: "0.85rem 1.25rem",
               borderBottom: "1px solid var(--hair-10)",
               backgroundColor: "var(--ground-secondary)",
@@ -240,7 +276,7 @@ export function LiveHistoryView({ initialScans }: LiveHistoryViewProps) {
             <span className="label" style={{ color: "var(--muted)" }}>Risk Verdict</span>
             <span className="label" style={{ color: "var(--muted)" }}>Confidence</span>
             <span className="label" style={{ color: "var(--muted)" }}>Timestamp</span>
-            <span className="label" style={{ color: "var(--muted)", textAlign: "right" }}>Forensic Report</span>
+            <span className="label" style={{ color: "var(--muted)", textAlign: "right" }}>Dossier & Feedback</span>
           </div>
 
           {/* Table Rows */}
@@ -253,106 +289,167 @@ export function LiveHistoryView({ initialScans }: LiveHistoryViewProps) {
                 <div
                   key={scan.id}
                   style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr",
-                    padding: "0.9rem 1.25rem",
                     borderTop: i === 0 ? "none" : "1px solid var(--hair-06)",
-                    gap: "0.75rem",
-                    alignItems: "center",
                     transition: "background-color 0.15s ease",
                   }}
-                  className="md:grid-cols-[1.7fr_80px_105px_95px_135px_120px]"
+                  className="group hover:bg-slate-50/50"
                 >
-                  {/* Target & icon */}
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", minWidth: 0 }}>
-                    {getScanIcon(scan)}
-                    <div style={{ display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden" }}>
-                      <span
-                        style={{
-                          fontSize: "13px",
-                          fontWeight: 500,
-                          color: "var(--ink)",
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                        }}
-                        title={scan.payload || "Diagnostic Target"}
-                      >
-                        {scan.payload || "Diagnostic Target"}
-                      </span>
-                      {threatText && (
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr",
+                      padding: "0.9rem 1.25rem",
+                      gap: "0.75rem",
+                      alignItems: "center",
+                    }}
+                    className="md:grid-cols-[1.5fr_75px_100px_90px_130px_170px]"
+                  >
+                    {/* Target & icon */}
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", minWidth: 0 }}>
+                      {getScanIcon(scan)}
+                      <div style={{ display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden" }}>
                         <span
                           style={{
-                            fontSize: "11px",
-                            color: "var(--muted)",
+                            fontSize: "13px",
+                            fontWeight: 500,
+                            color: "var(--ink)",
                             whiteSpace: "nowrap",
                             overflow: "hidden",
                             textOverflow: "ellipsis",
                           }}
+                          title={scan.payload || "Diagnostic Target"}
                         >
-                          {threatText}
+                          {scan.payload || "Diagnostic Target"}
                         </span>
-                      )}
+                        {threatText && (
+                          <span
+                            style={{
+                              fontSize: "11px",
+                              color: "var(--muted)",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {threatText}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Metadata & Actions row (compact flex on mobile, native grid columns on desktop) */}
+                    <div className="flex flex-wrap items-center justify-between gap-2.5 md:contents">
+                      {/* Type */}
+                      <div>
+                        <span className="chip" style={{ fontSize: "10px" }}>
+                          {scan.type}
+                        </span>
+                      </div>
+
+                      {/* Verdict */}
+                      <div>
+                        <span
+                          className="chip"
+                          style={{
+                            color: badge.color,
+                            borderColor: badge.border,
+                            backgroundColor: badge.bg,
+                            fontSize: "10px",
+                          }}
+                        >
+                          {badge.label}
+                        </span>
+                      </div>
+
+                      {/* Confidence / Status */}
+                      <div>
+                        <span className="label" style={{ color: "var(--ink)", fontSize: "11px", fontFamily: "var(--font-mono, monospace)" }}>
+                          {scan.result?.confidenceScore ? `${Math.round(scan.result.confidenceScore)}% CONF` : scan.status}
+                        </span>
+                      </div>
+
+                      {/* Timestamp */}
+                      <div>
+                        <span className="label" style={{ color: "var(--muted)", fontSize: "11px" }}>
+                          {formatDateTime(new Date(scan.createdAt))}
+                        </span>
+                      </div>
+
+                      {/* Actions: Dossier + Feedback button */}
+                      <div className="w-full sm:w-auto flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => openReportForScan(scan)}
+                          className="btn btn-secondary"
+                          style={{
+                            fontSize: "11px",
+                            padding: "0.3rem 0.55rem",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "0.3rem",
+                          }}
+                          title="Generate and view bilingual forensic report"
+                        >
+                          <FileText style={{ width: "12px", height: "12px", color: "var(--accent)" }} />
+                          <span>Dossier</span>
+                        </button>
+
+                        <button
+                          onClick={() => setExpandedFeedbackScanId(expandedFeedbackScanId === scan.id ? null : scan.id)}
+                          className={`btn ${expandedFeedbackScanId === scan.id ? "btn-primary" : "btn-secondary"}`}
+                          style={{
+                            fontSize: "11px",
+                            padding: "0.3rem 0.55rem",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "0.3rem",
+                          }}
+                          title="Rate prediction and record immutable feedback"
+                        >
+                          <Star
+                            style={{
+                              width: "12px",
+                              height: "12px",
+                              color: expandedFeedbackScanId === scan.id ? "#f59e0b" : "var(--muted)",
+                              fill: expandedFeedbackScanId === scan.id ? "#f59e0b" : "none",
+                            }}
+                          />
+                          <span>Rate</span>
+                          {expandedFeedbackScanId === scan.id ? (
+                            <ChevronUp style={{ width: "11px", height: "11px" }} />
+                          ) : (
+                            <ChevronDown style={{ width: "11px", height: "11px" }} />
+                          )}
+                        </button>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Metadata & Actions row (compact flex on mobile, native grid columns on desktop) */}
-                  <div className="flex flex-wrap items-center justify-between gap-2.5 md:contents">
-                    {/* Type */}
-                    <div>
-                      <span className="chip" style={{ fontSize: "10px" }}>
-                        {scan.type}
-                      </span>
-                    </div>
-
-                    {/* Verdict */}
-                    <div>
-                      <span
-                        className="chip"
-                        style={{
-                          color: badge.color,
-                          borderColor: badge.border,
-                          backgroundColor: badge.bg,
-                          fontSize: "10px",
+                  {/* Inline Feedback Drawer */}
+                  {expandedFeedbackScanId === scan.id && (
+                    <div className="px-4 py-4 bg-slate-50/70 border-t border-slate-200/70 animate-in fade-in duration-150">
+                      <ScanFeedbackWidget
+                        scanId={scan.id}
+                        tool={getToolForScan(scan)}
+                        target={scan.payload || "Diagnostic Target"}
+                        originalVerdict={scan.result?.threatCategory || scan.riskLevel}
+                        originalRiskScore={
+                          scan.riskLevel === "CRITICAL"
+                            ? 95
+                            : scan.riskLevel === "HIGH"
+                            ? 80
+                            : scan.riskLevel === "MEDIUM"
+                            ? 50
+                            : 10
+                        }
+                        extractedFeatures={{
+                          type: scan.type,
+                          provider: scan.result?.aiProvider,
+                          confidenceScore: scan.result?.confidenceScore,
+                          model: scan.result?.aiModel,
                         }}
-                      >
-                        {badge.label}
-                      </span>
+                      />
                     </div>
-
-                    {/* Confidence / Status */}
-                    <div>
-                      <span className="label" style={{ color: "var(--ink)", fontSize: "11px", fontFamily: "var(--font-mono, monospace)" }}>
-                        {scan.result?.confidenceScore ? `${Math.round(scan.result.confidenceScore)}% CONF` : scan.status}
-                      </span>
-                    </div>
-
-                    {/* Timestamp */}
-                    <div>
-                      <span className="label" style={{ color: "var(--muted)", fontSize: "11px" }}>
-                        {formatDateTime(new Date(scan.createdAt))}
-                      </span>
-                    </div>
-
-                    {/* Action: Open Bilingual Forensic Dossier */}
-                    <div className="w-full sm:w-auto text-right">
-                      <button
-                        onClick={() => openReportForScan(scan)}
-                        className="btn btn-secondary w-full sm:w-auto justify-center"
-                        style={{
-                          fontSize: "11px",
-                          padding: "0.3rem 0.65rem",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "0.35rem",
-                        }}
-                        title="Generate and view bilingual forensic report"
-                      >
-                        <FileText style={{ width: "12px", height: "12px", color: "var(--accent)" }} />
-                        <span>Dossier</span>
-                      </button>
-                    </div>
-                  </div>
+                  )}
                 </div>
               );
             })}

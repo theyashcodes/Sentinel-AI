@@ -27,12 +27,14 @@ import {
 } from "lucide-react";
 import { analyzeMediaProvenance, type ForensicResult } from "@/lib/forensics/mediaParser";
 import { notifyCyBroScanComplete } from "@/lib/cybro/events";
+import { ScanFeedbackWidget } from "@/components/feedback/ScanFeedbackWidget";
 
 export function MediaForensicsView() {
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [result, setResult] = useState<ForensicResult | null>(null);
+  const [recordedScanId, setRecordedScanId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [dragActive, setDragActive] = useState(false);
@@ -96,6 +98,7 @@ export function MediaForensicsView() {
     setFile(null);
     setPreviewUrl(null);
     setResult(null);
+    setRecordedScanId(null);
     setError(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -188,9 +191,15 @@ export function MediaForensicsView() {
           },
         }),
       })
-        .then((r) => {
-          if (r.ok && typeof window !== "undefined") {
-            window.dispatchEvent(new CustomEvent("sentinel:scan-updated"));
+        .then(async (r) => {
+          if (r.ok) {
+            const resJson = await r.json().catch(() => null);
+            if (resJson?.scanId) {
+              setRecordedScanId(resJson.scanId);
+            }
+            if (typeof window !== "undefined") {
+              window.dispatchEvent(new CustomEvent("sentinel:scan-updated"));
+            }
           }
         })
         .catch((err) => console.error("Failed to log media scan to history:", err));
@@ -543,6 +552,21 @@ export function MediaForensicsView() {
               </div>
             );
           })()}
+
+          {/* ── Model Feedback & Active Learning Loop ── */}
+          <ScanFeedbackWidget
+            scanId={recordedScanId || `media-${file?.name || "asset"}-${file?.size || "0"}`}
+            tool="media-forensics"
+            target={file?.name || "Uploaded Media Asset"}
+            originalVerdict={result.verdict}
+            originalRiskScore={result.confidenceScore}
+            extractedFeatures={{
+              generatorTool: result.generatorTool,
+              c2paDetected: result.c2pa?.detected,
+              synthIdDetected: result.synthId?.detectedMarker,
+              pixelAiProbability: result.pixelForensics?.aiProbability,
+            }}
+          />
 
           {/* ── 2. Two-Column Trust Frameworks (C2PA & SynthID) ── */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

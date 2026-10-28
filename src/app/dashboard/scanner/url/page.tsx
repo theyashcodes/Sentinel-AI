@@ -21,6 +21,7 @@ import {
 import { motion } from "framer-motion";
 import { QRScanSecurityCheckResult, ScoreBreakdown, SignalEvidenceItem } from "@/modules/scanner/qr/types/qr-scanner";
 import { notifyCyBroScanComplete } from "@/lib/cybro/events";
+import { ScanFeedbackWidget } from "@/components/feedback/ScanFeedbackWidget";
 
 export interface URLScanResponse {
   scanId: string;
@@ -565,6 +566,25 @@ export default function UrlScannerPage() {
                     </div>
                   </LiquidGlassCard>
                 )}
+
+                {/* Scan Feedback & Active Learning Widget */}
+                <div className="md:col-span-2">
+                  <ScanFeedbackWidget
+                    scanId={result.scanId || `url-${encodeURIComponent(result.normalized || url)}`}
+                    tool="url-scanner"
+                    target={result.normalized || url}
+                    originalVerdict={result.verdict || result.threatType}
+                    originalRiskScore={result.riskScore}
+                    extractedFeatures={{
+                      riskLevel: result.riskLevel,
+                      threatType: result.threatType,
+                      confidence: result.confidence,
+                      domain: result.domain,
+                      hasUserInfo: result.hasUserInfo,
+                      warningsCount: result.securityChecks?.warnings?.length || 0,
+                    }}
+                  />
+                </div>
               </div>
             </div>
           )}

@@ -34,6 +34,7 @@ import {
 import { notifyCyBroScanComplete } from "@/lib/cybro/events";
 import { ForensicReportModal } from "@/components/forensics/ForensicReportModal";
 import { ForensicReportData } from "@/lib/forensics/reportGenerator";
+import { ScanFeedbackWidget } from "@/components/feedback/ScanFeedbackWidget";
 
 export function VoiceForensicsView() {
   const [activeTab, setActiveTab] = useState<"upload" | "record" | "presets">("upload");
@@ -41,6 +42,7 @@ export function VoiceForensicsView() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [result, setResult] = useState<VoiceForensicResult | null>(null);
+  const [recordedScanId, setRecordedScanId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [dragActive, setDragActive] = useState(false);
@@ -266,9 +268,15 @@ export function VoiceForensicsView() {
           },
         }),
       })
-        .then((r) => {
-          if (r.ok && typeof window !== "undefined") {
-            window.dispatchEvent(new CustomEvent("sentinel:scan-updated"));
+        .then(async (r) => {
+          if (r.ok) {
+            const resJson = await r.json().catch(() => null);
+            if (resJson?.scanId) {
+              setRecordedScanId(resJson.scanId);
+            }
+            if (typeof window !== "undefined") {
+              window.dispatchEvent(new CustomEvent("sentinel:scan-updated"));
+            }
           }
         })
         .catch((err) => console.error("Failed to log voice scan to history:", err));
@@ -367,9 +375,15 @@ export function VoiceForensicsView() {
         },
       }),
     })
-      .then((r) => {
-        if (r.ok && typeof window !== "undefined") {
-          window.dispatchEvent(new CustomEvent("sentinel:scan-updated"));
+      .then(async (r) => {
+        if (r.ok) {
+          const resJson = await r.json().catch(() => null);
+          if (resJson?.scanId) {
+            setRecordedScanId(resJson.scanId);
+          }
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("sentinel:scan-updated"));
+          }
         }
       })
       .catch((err) => console.error("Failed to log preset scan to history:", err));
@@ -1145,6 +1159,21 @@ ${result.scamAnalysis.advice.map((a) => "- " + a).join("\n")}`;
                     </a>
                   </div>
                 )}
+
+                {/* ── Model Feedback & Active Learning Loop ── */}
+                <ScanFeedbackWidget
+                  scanId={recordedScanId || `voice-${file?.name || "audio"}-${file?.size || "0"}`}
+                  tool="voice-forensics"
+                  target={file?.name || "Voice Recording Audio Clip"}
+                  originalVerdict={result.verdict}
+                  originalRiskScore={result.aiProbabilityScore}
+                  extractedFeatures={{
+                    aiProbabilityScore: result.aiProbabilityScore,
+                    matchedArchitecture: result.matchedArchitecture,
+                    jitterPercent: result.acousticMetrics.jitterPercent,
+                    spectralCutoffKHz: result.acousticMetrics.spectralCutoffKHz,
+                  }}
+                />
               </div>
             </div>
           ) : (
