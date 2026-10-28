@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { X, Send, Sparkles, ShieldAlert, CheckCircle2, RotateCcw } from "lucide-react";
+import { motion, useDragControls } from "framer-motion";
+import { X, Send, Sparkles, ShieldAlert, CheckCircle2, RotateCcw, GripHorizontal } from "lucide-react";
 import { CyBroAvatar, CyBroMood } from "./CyBroAvatar";
 import { ScanEventDetail } from "@/lib/cybro/events";
 import { authClient } from "@/lib/auth-client";
@@ -19,13 +20,13 @@ interface Message {
 const DEFAULT_WELCOME_MESSAGE: Message = {
   id: "initial-welcome",
   sender: "cybro",
-  text: "Yo! I'm **CyBro** — your street-smart Sentinel AI cyber companion! 🤖⚡\n\nI monitor your dashboard scans in real time. Drop any suspicious link, SMS, or email, or run a scan in any tool (Redirect Tracer, AI Media Forensics, or Email Dissector) — I'll analyze the output and give you the optimal safe action!",
+  text: "Yo! I'm **CyBro** — your elite street-smart cyber-guardian on Sentinel AI! 🤖⚡\n\nEngineered by **Yash Gupta** to give you real-time threat intelligence. Ask me about your scan results, paste any suspicious link/SMS/email, or learn how Sentinel AI's forensics, scanner, and tracers work!",
   mood: "smug",
   suggestions: [
-    "How does Redirect Tracer detect homoglyphs?",
+    "Who created Sentinel AI & CyBro?",
+    "What tools does Sentinel AI offer?",
     "How does AI Media Forensics detect deepfakes?",
-    "Check this link: https://раypal.com/login",
-    "Check safe link: https://google.com",
+    "How does Redirect Tracer detect homoglyphs?",
   ],
   timestamp: "Online",
 };
@@ -45,6 +46,7 @@ export function CyBroWidget() {
   const { data: session } = authClient.useSession();
   const userId = session?.user?.id || "guest";
 
+  const dragControls = useDragControls();
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -52,7 +54,9 @@ export function CyBroWidget() {
   const [isVisible, setIsVisible] = useState(true);
   const [hookIndex, setHookIndex] = useState(0);
   const [liveScanAlert, setLiveScanAlert] = useState<string | null>(null);
+  const [isBubbleDismissed, setIsBubbleDismissed] = useState(false);
   const [hasUnreadAlert, setHasUnreadAlert] = useState(false);
+  const [latestScanContext, setLatestScanContext] = useState<ScanEventDetail | null>(null);
 
   const [messages, setMessages] = useState<Message[]>([DEFAULT_WELCOME_MESSAGE]);
   const [historyLoaded, setHistoryLoaded] = useState(false);
@@ -148,13 +152,16 @@ export function CyBroWidget() {
       const detail = customEvent.detail;
       if (!detail) return;
 
+      setLatestScanContext(detail);
+      setIsBubbleDismissed(false);
+
       const isThreat = detail.isThreat;
       const mood: CyBroMood = isThreat ? "angry" : "happy";
       setCurrentMood(mood);
 
       const alertBanner = isThreat
-        ? `🚨 Threat in ${detail.tool.toUpperCase()}! Click for safe action plan.`
-        : `😄 Clean ${detail.tool.toUpperCase()} scan on ${detail.target.slice(0, 20)}!`;
+        ? `🚨 Security Alert in ${detail.tool.toUpperCase()}! Inspect findings.`
+        : `⚡ Clean ${detail.tool.toUpperCase()} scan on ${detail.target.slice(0, 20)}!`;
       
       setLiveScanAlert(alertBanner);
       setHasUnreadAlert(true);
@@ -242,6 +249,7 @@ export function CyBroWidget() {
         body: JSON.stringify({
           message: text,
           history,
+          scanContext: latestScanContext,
         }),
       });
 
@@ -265,12 +273,12 @@ export function CyBroWidget() {
 
       setMessages((prev) => [...prev, botMsg]);
     } catch {
-      setCurrentMood("angry");
+      setCurrentMood("smug");
       const errorMsg: Message = {
         id: `err-${Date.now()}`,
         sender: "cybro",
-        text: "Arre yaar, server network hiccup! Ek baar refresh karke wapas bolo na bro.",
-        mood: "angry",
+        text: "Arre yaar, server network hiccup ho gaya! Ek baar refresh karke wapas bolo na bro.",
+        mood: "smug",
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       };
       setMessages((prev) => [...prev, errorMsg]);
@@ -279,9 +287,93 @@ export function CyBroWidget() {
     }
   };
 
-  // Helper to render bold markdown (**text**), code (`text`), and lines
+  // Helper to render formatted markdown, badges, and code snippets
   const renderFormattedText = (text: string) => {
     return text.split("\n").map((line, i) => {
+      const trimmed = line.trim();
+
+      // Threat Badge detection (removes ugly raw bracket markdown)
+      if (
+        trimmed === "[THREAT DETECTED]" ||
+        trimmed === "[SCAM / DANGEROUS]" ||
+        trimmed === "[SCAM]" ||
+        trimmed === "[DANGEROUS]" ||
+        trimmed.startsWith("VERDICT: THREAT DETECTED") ||
+        trimmed.startsWith("VERDICT: SCAM DETECTED")
+      ) {
+        return (
+          <div key={i} style={{ margin: "6px 0" }}>
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                backgroundColor: "rgba(239, 68, 68, 0.16)",
+                border: "1px solid rgba(239, 68, 68, 0.45)",
+                color: "#FCA5A5",
+                padding: "3px 10px",
+                borderRadius: "9999px",
+                fontSize: "10.5px",
+                fontWeight: 700,
+                letterSpacing: "0.04em",
+                boxShadow: "0 0 10px rgba(239, 68, 68, 0.25)",
+              }}
+            >
+              <span
+                style={{
+                  width: "6px",
+                  height: "6px",
+                  borderRadius: "50%",
+                  backgroundColor: "#EF4444",
+                  boxShadow: "0 0 6px #EF4444",
+                }}
+              />
+              THREAT DETECTED
+            </span>
+          </div>
+        );
+      }
+
+      // Safe Badge detection
+      if (
+        trimmed === "[SAFE]" ||
+        trimmed === "[CLEAN]" ||
+        trimmed.startsWith("VERDICT: VERIFIED SAFE") ||
+        trimmed.startsWith("VERDICT: SAFE")
+      ) {
+        return (
+          <div key={i} style={{ margin: "6px 0" }}>
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                backgroundColor: "rgba(16, 185, 129, 0.16)",
+                border: "1px solid rgba(16, 185, 129, 0.45)",
+                color: "#6EE7B7",
+                padding: "3px 10px",
+                borderRadius: "9999px",
+                fontSize: "10.5px",
+                fontWeight: 700,
+                letterSpacing: "0.04em",
+                boxShadow: "0 0 10px rgba(16, 185, 129, 0.25)",
+              }}
+            >
+              <span
+                style={{
+                  width: "6px",
+                  height: "6px",
+                  borderRadius: "50%",
+                  backgroundColor: "#10B981",
+                  boxShadow: "0 0 6px #10B981",
+                }}
+              />
+              VERIFIED SAFE
+            </span>
+          </div>
+        );
+      }
+
       const parts = line.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
       return (
         <div key={i} style={{ minHeight: line === "" ? "8px" : undefined, marginBottom: "3px" }}>
@@ -332,7 +424,7 @@ export function CyBroWidget() {
         }}
       >
         {/* Dynamic English Speech Bubble Tooltip or Live Scan Alert */}
-        {!isOpen && (
+        {!isOpen && !isBubbleDismissed && (
           <div
             onClick={handleOpenWidget}
             style={{
@@ -348,7 +440,7 @@ export function CyBroWidget() {
                 ? "0 6px 28px rgba(239, 68, 68, 0.35)"
                 : "0 6px 24px rgba(0,0,0,0.6)",
               borderRadius: "14px",
-              padding: "8px 14px",
+              padding: "8px 12px 8px 14px",
               cursor: "pointer",
               fontSize: "12px",
               fontWeight: 600,
@@ -358,17 +450,52 @@ export function CyBroWidget() {
               gap: "8px",
               animation: "fadeIn 0.3s ease",
               transition: "transform 0.15s ease",
-              maxWidth: "280px",
+              maxWidth: "290px",
             }}
-            onMouseOver={(e) => ((e.currentTarget as HTMLElement).style.transform = "scale(1.04)")}
+            onMouseOver={(e) => ((e.currentTarget as HTMLElement).style.transform = "scale(1.03)")}
             onMouseOut={(e) => ((e.currentTarget as HTMLElement).style.transform = "scale(1)")}
           >
             <span style={{ fontSize: "14px" }}>
-              {currentMood === "happy" ? "😄" : currentMood === "angry" ? "🚨" : "🛡️"}
+              {currentMood === "happy" ? "😄" : currentMood === "angry" ? "🛡️" : "⚡"}
             </span>
-            <span style={{ whiteSpace: "normal", lineHeight: 1.3 }}>
+            <span style={{ whiteSpace: "normal", lineHeight: 1.3, flex: 1 }}>
               {liveScanAlert || ENGLISH_HOOKS[hookIndex]}
             </span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setLiveScanAlert(null);
+                setIsBubbleDismissed(true);
+                setHasUnreadAlert(false);
+              }}
+              title="Dismiss notification"
+              aria-label="Dismiss notification"
+              style={{
+                background: "rgba(255,255,255,0.06)",
+                border: "none",
+                padding: "3px",
+                borderRadius: "50%",
+                cursor: "pointer",
+                color: "#94A3B8",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+                marginLeft: "4px",
+                transition: "all 0.15s ease",
+              }}
+              onMouseOver={(e) => {
+                (e.currentTarget as HTMLElement).style.color = "#FFFFFF";
+                (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255, 255, 255, 0.15)";
+              }}
+              onMouseOut={(e) => {
+                (e.currentTarget as HTMLElement).style.color = "#94A3B8";
+                (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255, 255, 255, 0.06)";
+              }}
+            >
+              <X style={{ width: "12px", height: "12px" }} />
+            </button>
           </div>
         )}
 
@@ -414,14 +541,19 @@ export function CyBroWidget() {
 
       {/* ── CyBro Chat Window ── */}
       {isOpen && (
-        <div
+        <motion.div
+          drag
+          dragControls={dragControls}
+          dragListener={false}
+          dragMomentum={false}
+          dragElastic={0.05}
           className="right-3 sm:right-6 bottom-20 sm:bottom-[94px]"
           style={{
             position: "fixed",
             width: "calc(100vw - 24px)",
-            maxWidth: "395px",
+            maxWidth: "405px",
             height: "calc(100vh - 115px)",
-            maxHeight: "570px",
+            maxHeight: "585px",
             backgroundColor: "#0B0F19",
             border: `1.5px solid ${
               currentMood === "happy"
@@ -442,20 +574,48 @@ export function CyBroWidget() {
           {/* Header */}
           <div
             style={{
-              padding: "14px 16px",
+              padding: "12px 14px",
               backgroundColor: "#0F172A",
               borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
+              gap: "8px",
+              userSelect: "none",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              <CyBroAvatar size={36} mood={currentMood} />
-              <div>
+            {/* Draggable Title Area */}
+            <div
+              onPointerDown={(e) => dragControls.start(e)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                cursor: "grab",
+                flex: 1,
+                overflow: "hidden",
+              }}
+              title="Hold and drag to move CyBro anywhere on screen"
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "4px",
+                  borderRadius: "6px",
+                  backgroundColor: "rgba(255,255,255,0.05)",
+                  color: "#64748B",
+                  flexShrink: 0,
+                }}
+              >
+                <GripHorizontal style={{ width: "15px", height: "15px" }} />
+              </div>
+              <CyBroAvatar size={34} mood={currentMood} />
+              <div style={{ overflow: "hidden" }}>
                 <div
                   style={{
-                    fontSize: "14px",
+                    fontSize: "13.5px",
                     fontWeight: 700,
                     color: "#FFFFFF",
                     display: "flex",
@@ -478,14 +638,24 @@ export function CyBroWidget() {
                     ONLINE
                   </span>
                 </div>
-                <div style={{ fontSize: "11px", color: "#94A3B8" }}>
+                <div
+                  style={{
+                    fontSize: "10.5px",
+                    color: "#94A3B8",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
                   {currentMood === "happy"
-                    ? "Smiling 😄 (Safe & Verified!)"
+                    ? "Verified Clean ⚡ (Safe Target)"
                     : currentMood === "angry"
-                    ? "Angry Alert 😡 (Scam Detected!)"
+                    ? "Sentinel Alert 🛡️ (Threat Analysis)"
                     : currentMood === "smug"
-                    ? "Roast & Solution Mode 😏"
-                    : "Real-Time Cyber Copilot"}
+                    ? "Tactical Intel & Roast Mode 🎯"
+                    : currentMood === "thinking"
+                    ? "Analyzing Threat Intel 🧠"
+                    : "Real-Time Cyber Co-Pilot"}
                 </div>
               </div>
             </div>
@@ -555,6 +725,47 @@ export function CyBroWidget() {
               </button>
             </div>
           </div>
+
+          {/* Active Scan Telemetry Banner */}
+          {latestScanContext && (
+            <div
+              style={{
+                padding: "7px 14px",
+                backgroundColor: latestScanContext.isThreat ? "rgba(239, 68, 68, 0.12)" : "rgba(16, 185, 129, 0.12)",
+                borderBottom: `1px solid ${latestScanContext.isThreat ? "rgba(239, 68, 68, 0.25)" : "rgba(16, 185, 129, 0.25)"}`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "8px",
+                fontSize: "11px",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", overflow: "hidden" }}>
+                <span style={{ fontSize: "12px" }}>{latestScanContext.isThreat ? "⚠️" : "🛡️"}</span>
+                <span style={{ color: "#E2E8F0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  Active Scan: <strong style={{ color: "#FFFFFF" }}>{latestScanContext.tool.toUpperCase()}</strong> ({latestScanContext.target.slice(0, 20)})
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => sendMessage(latestScanContext.isThreat ? "Explain technical risk of this scan" : "What makes this target safe?")}
+                style={{
+                  backgroundColor: "rgba(56, 189, 248, 0.15)",
+                  border: "1px solid rgba(56, 189, 248, 0.3)",
+                  color: "#38BDF8",
+                  padding: "3px 8px",
+                  borderRadius: "8px",
+                  fontSize: "10px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  flexShrink: 0,
+                  transition: "all 0.15s ease",
+                }}
+              >
+                Deep-Dive ⚡
+              </button>
+            </div>
+          )}
 
           {/* Messages Stream */}
           <div
@@ -718,7 +929,7 @@ export function CyBroWidget() {
               <Send style={{ width: "16px", height: "16px" }} />
             </button>
           </form>
-        </div>
+        </motion.div>
       )}
     </>
   );

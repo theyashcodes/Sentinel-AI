@@ -12,12 +12,13 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const message = body.message || "";
     const history = Array.isArray(body.history) ? body.history : [];
+    const scanContext = body.scanContext || undefined;
 
     if (!message.trim()) {
       throw new ValidationError("Message content cannot be empty");
     }
 
-    const response = await generateCyBroReply(message, history);
+    const response = await generateCyBroReply(message, history, undefined, scanContext);
     return NextResponse.json(response);
   } catch (err) {
     return handleApiError(err, req);

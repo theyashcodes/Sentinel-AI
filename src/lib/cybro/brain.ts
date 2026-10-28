@@ -1,5 +1,5 @@
 import { detectImpersonation } from "@/lib/scanner/tracer";
-import { queryGrok, GrokMessage } from "./grok";
+import { queryGrok, GrokMessage, ScanContext } from "./grok";
 
 export interface CyBroResponse {
   reply: string;
@@ -10,40 +10,102 @@ export interface CyBroResponse {
 }
 
 /**
- * CyBro Sarcastic Intelligence Engine (Powered by Grok/Groq with Street-Smart Roast Persona + Local Fallback)
+ * CyBro Tactical Intelligence Engine (Powered by Grok/Groq with Street-Smart Roast Persona + Local Fallback)
  */
 export async function generateCyBroReply(
   message: string,
   history: GrokMessage[] = [],
-  customApiKey?: string
+  customApiKey?: string,
+  scanContext?: ScanContext
 ): Promise<CyBroResponse> {
   const cleanMsg = message.trim();
   const lowerMsg = cleanMsg.toLowerCase();
 
-  // 1. Try Grok (xAI) API first if key exists
+  // 1. Try Grok / Groq API first
   const grokResponse = await queryGrok(
     [
       ...history,
       { role: "user", content: cleanMsg },
     ],
-    customApiKey
+    customApiKey,
+    scanContext
   );
 
   if (grokResponse) {
+    const contextualSuggestions = scanContext
+      ? scanContext.isThreat
+        ? ["How do I block this threat?", "Explain technical risk", "Who created Sentinel AI?"]
+        : ["What makes this safe?", "Scan another target", "Who created Sentinel AI?"]
+      : [
+          "Who created Sentinel AI?",
+          "How does AI Media Forensics detect deepfakes?",
+          "How does Redirect Tracer detect homoglyphs?",
+        ];
+
     return {
       reply: grokResponse.reply,
       threatDetected: grokResponse.threatDetected,
       mood: grokResponse.mood,
       poweredByGrok: true,
+      quickSuggestions: contextualSuggestions,
+    };
+  }
+
+  // 2. High-Octane Local Knowledge & Fallback Brain
+
+  // --- Scenario 0: Developer / Creator Info (Yash Gupta) ---
+  if (
+    lowerMsg.includes("developer") ||
+    lowerMsg.includes("creator") ||
+    lowerMsg.includes("who made") ||
+    lowerMsg.includes("who built") ||
+    lowerMsg.includes("founder") ||
+    lowerMsg.includes("yash") ||
+    lowerMsg.includes("yash gupta")
+  ) {
+    return {
+      reply: `🚀 **Meet My Creator: Yash Gupta!** 🛡️\n\nMujhe aur pure **Sentinel AI** ecosystem ko **Yash Gupta** ne design aur engineer kiya hai.\n\n- **GitHub:** [@theyashcodes](https://github.com/theyashcodes)\n- **Email:** \`iamyash.2000@gmail.com\`\n- **Mission:** AI deepfakes, phishing, SSRF, aur quishing jaise cutting-edge digital threats se real-time protect karna.\n\nPure system ka core architecture, ML pipelines, aur mera ye personality module sab Yash ne banaya hai! 🦾⚡`,
+      threatDetected: false,
+      mood: "smug",
       quickSuggestions: [
-        "Check another suspicious link",
-        "What is Golden Hour fraud rule?",
-        "Tell me a cyber joke bro",
+        "What tools does Sentinel AI offer?",
+        "How does AI Media Forensics work?",
+        "How does Redirect Tracer work?",
       ],
     };
   }
 
-  // 2. High-Octane Local Roast Fallback Brain
+  // --- Scenario 0.5: Active Scan Deep-Dive via Local Fallback ---
+  if (scanContext) {
+    if (
+      lowerMsg.includes("what makes this safe") ||
+      lowerMsg.includes("why is it safe") ||
+      lowerMsg.includes("safe kyu") ||
+      lowerMsg.includes("safe kyu hai")
+    ) {
+      return {
+        reply: `⚡ **Security Verification Breakdown:**\nTarget \`${scanContext.target}\` scanned via **${scanContext.tool}**.\n\nVERDICT: VERIFIED SAFE\n- **Integrity Check:** Zero cryptographic or heuristic anomalies detected.\n- **Signatures:** No phishing homoglyphs, malware fingerprints, or generative diffusion artifacts.\n- Safe to proceed in your normal workflow!`,
+        threatDetected: false,
+        mood: "happy",
+        quickSuggestions: ["Scan another target", "Who created Sentinel AI?"],
+      };
+    }
+
+    if (
+      lowerMsg.includes("explain technical risk") ||
+      lowerMsg.includes("how do i block this") ||
+      lowerMsg.includes("why is it flagged") ||
+      lowerMsg.includes("risk kya hai") ||
+      lowerMsg.includes("kya threat hai")
+    ) {
+      return {
+        reply: `🛡️ **Technical Risk Breakdown:**\nTarget \`${scanContext.target}\` was flagged by **${scanContext.tool}**.\n\nVERDICT: THREAT DETECTED\n- **Risk Level:** ${scanContext.threatLevel || "High"}\n- **Summary:** ${scanContext.summary}\n- **Countermeasure:** Do not enter credentials, open downloads, or interact with this asset. Quarantine immediately!`,
+        threatDetected: true,
+        mood: "angry",
+        quickSuggestions: ["How do I block this threat?", "Who created Sentinel AI?"],
+      };
+    }
+  }
 
   // --- Scenario A: URL Inspection ---
   const urlRegex = /(https?:\/\/[^\s]+|[a-zA-Z0-9-]+\.(?:com|in|org|net|xyz|ru|top|click|link|site|info)[^\s]*)/i;
@@ -63,7 +125,7 @@ export async function generateCyBroReply(
     const impersonation = detectImpersonation(host);
     if (impersonation.detected) {
       return {
-        reply: `😡 **BHAI KYA KAR RAHA HAI TU?! YEH LINK BILKUL FAKE HAI!**\n\nArey mere bhole dost, aankhein khol ke dekh! Ye domain (\`${host}\`) asli **${impersonation.targetBrand || "brand"}** nahi hai, isme Russian ya fake Cyrillic characters dale hue hain!\n\nHacker ne socha tum andhe ho jo notice nahi karoge... aur sach batao, thodi der ke liye toh tum bhi pighal gaye the na? 🤦‍♂️\n\n🛡️ **SOLUTION (Kaan khol ke suno):**\n1. ❌ Is link ko galti se bhi open mat karna.\n2. 🚫 Agar open kar diya tha, toh koi ID/password ya OTP enter MAT karna.\n3. 🔒 Turant browser tab close karo aur message delete maaro!`,
+        reply: `🛡️ **Tactical Alert: Homoglyph Spoofing Detected!**\n\nTarget domain (\`${host}\`) is visually impersonating **${impersonation.targetBrand || "brand"}** using lookalike Russian/Cyrillic characters!\n\nVERDICT: THREAT DETECTED\n- ❌ Do NOT enter any login credentials, OTPs, or payment details.\n- 🔒 Close the browser tab immediately and report the source.`,
         threatDetected: true,
         mood: "angry",
         quickSuggestions: [
@@ -257,10 +319,10 @@ export async function generateCyBroReply(
 
   if (lowerMsg.includes("sentinel") || lowerMsg.includes("project") || lowerMsg.includes("features") || lowerMsg.includes("tools")) {
     return {
-      reply: `⚡ **Sentinel AI Platform Suite:**\n1. **URL Scanner:** Live malware & threat feed check.\n2. **Redirect Tracer:** Homoglyph & redirect chain tracer.\n3. **AI Forensics:** C2PA & FFT deepfake detector.\n4. **Email Dissector:** .eml file & SPF/DKIM auditor.\n5. **Browser Extension:** Real-time link guard.\n\nKis tool ke baare me detail chahiye bro?`,
+      reply: `⚡ **Sentinel AI Full Security Arsenal (Engineered by Yash Gupta):**\n1. **AI Media Forensics:** C2PA metadata & FFT spectral pixel deepfake detector.\n2. **AI Voice Clone Forensics:** Bio-acoustic jitter, shimmer & neural vocoder audio analyzer.\n3. **Redirect Tracer:** SSRF-protected multi-hop tracer & Russian homoglyph unmasker.\n4. **URL Threat Scanner:** Malware feeds, SSL handshake & DNS verification.\n5. **QR Quishing Scanner:** Rogue payload & Wi-Fi trap detection.\n6. **Phishing Email Dissector:** RFC 822 .eml audit with SPF/DKIM/DMARC checks.\n7. **Browser Extension:** Real-time Chromium/Brave protection shield.\n\nKis tool ke baare me deep technical detail chahiye bro?`,
       threatDetected: false,
       mood: "smug",
-      quickSuggestions: ["Explain Redirect Tracer", "Explain AI Forensics", "Explain Email Dissector"],
+      quickSuggestions: ["Who created Sentinel AI?", "Explain AI Media Forensics", "Explain Redirect Tracer"],
     };
   }
 
