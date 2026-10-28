@@ -32,10 +32,28 @@ export interface ForensicResult {
     dateCaptured?: string;
   };
   technicalEvidence: Array<{
-    category: "C2PA_MANIFEST" | "PNG_CHUNK" | "XMP_IPTC" | "EXIF_HARDWARE" | "AI_PROMPT" | "VIDEO_ATOM" | "METADATA_INTEGRITY";
+    category: "C2PA_MANIFEST" | "PNG_CHUNK" | "XMP_IPTC" | "EXIF_HARDWARE" | "AI_PROMPT" | "VIDEO_ATOM" | "METADATA_INTEGRITY" | "PIXEL_ANALYSIS" | "SPECTRAL_FFT";
     status: "CRITICAL_AI" | "WARNING" | "VERIFIED_AUTHENTIC" | "INFO";
     detail: string;
   }>;
+  pixelForensics?: {
+    analyzed: boolean;
+    method?: string;
+    aiProbability?: number;
+    isAi?: boolean;
+    verdictLabel?: string;
+    elaHeatmapBase64?: string;
+    fftSpectrumBase64?: string;
+    metrics?: {
+      elaMeanError?: number;
+      elaVariance?: number;
+      spectralHighFreqPeaks?: number;
+      sensorNoiseVariance?: number;
+      neuralModelConsulted?: boolean;
+    };
+    detectedArtifacts?: string[];
+    explanation?: string;
+  };
   summaryExplanation: string;
 }
 

@@ -18,6 +18,9 @@ import {
   RotateCcw,
   Fingerprint,
   Info,
+  Activity,
+  Eye,
+  Grid,
 } from "lucide-react";
 import { analyzeMediaProvenance, type ForensicResult } from "@/lib/forensics/mediaParser";
 import { notifyCyBroScanComplete } from "@/lib/cybro/events";
@@ -30,6 +33,7 @@ export function MediaForensicsView() {
   const [error, setError] = useState<string | null>(null);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [activeVisualMode, setActiveVisualMode] = useState<"ORIGINAL" | "ELA_HEATMAP" | "FFT_SPECTRUM">("ORIGINAL");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = (selectedFile: File) => {
@@ -107,11 +111,33 @@ export function MediaForensicsView() {
     setResult(null);
 
     try {
-      // Dissect directly in browser using universal binary parser.
-      // Operates on ArrayBuffer in-memory up to 50MB with instant ~20ms execution,
-      // completely bypassing Vercel's 4.5MB serverless payload limit.
+      // 1. Initial client-side binary provenance check (C2PA, SynthID, EXIF, Prompts)
       const arrayBuffer = await file.arrayBuffer();
-      const data = await analyzeMediaProvenance(new Uint8Array(arrayBuffer), file.name);
+      const localData = await analyzeMediaProvenance(new Uint8Array(arrayBuffer), file.name);
+
+      let data = localData;
+
+      // 2. Query zero-metadata deep pixel & spectral forensics microservice via server API for images
+      const isImg = file.type.startsWith("image/") || /\.(png|jpe?g|webp)$/i.test(file.name);
+      if (isImg && file.size <= 48 * 1024 * 1024) {
+        try {
+          const formData = new FormData();
+          formData.append("file", file);
+          const serverRes = await fetch("/api/media-forensics", {
+            method: "POST",
+            body: formData,
+          });
+          if (serverRes.ok) {
+            const serverReport = await serverRes.json();
+            if (serverReport && serverReport.pixelForensics) {
+              data = serverReport;
+            }
+          }
+        } catch (serverErr) {
+          console.warn("Server-side pixel dissection fallback to local metadata:", serverErr);
+        }
+      }
+
       setResult(data);
 
       // Notify CyBro for real-time optimal safe action advisory
@@ -619,6 +645,167 @@ export function MediaForensicsView() {
               )}
             </div>
           </div>
+
+          {/* ── 2.5 Zero-Metadata Pixel & Spectral Forensics (Interactive Visualizer) ── */}
+          {result.pixelForensics?.analyzed && (
+            <div
+              className="void-panel"
+              style={{
+                padding: "1.5rem",
+                display: "flex",
+                flexDirection: "column",
+                gap: "1.25rem",
+                borderLeft: "4px solid var(--accent)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.75rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <Activity style={{ width: "18px", height: "18px", color: "var(--accent)" }} />
+                  <span className="label" style={{ color: "var(--ink)", fontWeight: 700, fontSize: "14px" }}>
+                    Zero-Metadata Pixel & Spectral Forensics
+                  </span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <span
+                    className="chip"
+                    style={{
+                      color: result.pixelForensics.isAi ? "var(--crit)" : "var(--ok)",
+                      borderColor: result.pixelForensics.isAi ? "rgba(239,68,68,0.3)" : "rgba(34,197,94,0.3)",
+                      backgroundColor: result.pixelForensics.isAi ? "rgba(239,68,68,0.06)" : "rgba(34,197,94,0.06)",
+                      fontWeight: 700,
+                    }}
+                  >
+                    {result.pixelForensics.verdictLabel} • {result.pixelForensics.aiProbability}% AI PROBABILITY
+                  </span>
+                </div>
+              </div>
+
+              <p style={{ margin: 0, fontSize: "13px", color: "var(--ink)", lineHeight: 1.5 }}>
+                {result.pixelForensics.explanation}
+              </p>
+
+              {/* Mode Switcher Tabs */}
+              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={() => setActiveVisualMode("ORIGINAL")}
+                  className={activeVisualMode === "ORIGINAL" ? "btn-accent" : "btn-ghost"}
+                  style={{ fontSize: "12px", padding: "6px 12px", height: "auto" }}
+                >
+                  <Eye style={{ width: "13px", height: "13px", marginRight: "5px" }} />
+                  Original Image
+                </button>
+                {result.pixelForensics.elaHeatmapBase64 && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveVisualMode("ELA_HEATMAP")}
+                    className={activeVisualMode === "ELA_HEATMAP" ? "btn-accent" : "btn-ghost"}
+                    style={{ fontSize: "12px", padding: "6px 12px", height: "auto" }}
+                  >
+                    <Activity style={{ width: "13px", height: "13px", marginRight: "5px" }} />
+                    Error Level Analysis (ELA Heatmap)
+                  </button>
+                )}
+                {result.pixelForensics.fftSpectrumBase64 && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveVisualMode("FFT_SPECTRUM")}
+                    className={activeVisualMode === "FFT_SPECTRUM" ? "btn-accent" : "btn-ghost"}
+                    style={{ fontSize: "12px", padding: "6px 12px", height: "auto" }}
+                  >
+                    <Grid style={{ width: "13px", height: "13px", marginRight: "5px" }} />
+                    2D-FFT Radial Frequency Spectrum
+                  </button>
+                )}
+              </div>
+
+              {/* Visual Display Screen */}
+              <div
+                style={{
+                  position: "relative",
+                  width: "100%",
+                  maxHeight: "420px",
+                  height: "360px",
+                  borderRadius: "8px",
+                  overflow: "hidden",
+                  border: "1px solid var(--hair-15)",
+                  backgroundColor: "#05070a",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {activeVisualMode === "ORIGINAL" && previewUrl && (
+                  <img
+                    src={previewUrl}
+                    alt="Original Upload"
+                    style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }}
+                  />
+                )}
+                {activeVisualMode === "ELA_HEATMAP" && result.pixelForensics.elaHeatmapBase64 && (
+                  <img
+                    src={result.pixelForensics.elaHeatmapBase64}
+                    alt="Forensic ELA Heatmap"
+                    style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }}
+                  />
+                )}
+                {activeVisualMode === "FFT_SPECTRUM" && result.pixelForensics.fftSpectrumBase64 && (
+                  <img
+                    src={result.pixelForensics.fftSpectrumBase64}
+                    alt="2D-FFT Radial Frequency Spectrum"
+                    style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }}
+                  />
+                )}
+                <div
+                  style={{
+                    position: "absolute",
+                    bottom: "10px",
+                    left: "10px",
+                    backgroundColor: "rgba(0,0,0,0.75)",
+                    padding: "4px 8px",
+                    borderRadius: "4px",
+                    color: "#fff",
+                    fontSize: "11px",
+                    fontWeight: 600,
+                  }}
+                >
+                  {activeVisualMode === "ORIGINAL"
+                    ? "Displaying: Original Pixels"
+                    : activeVisualMode === "ELA_HEATMAP"
+                    ? "Displaying: ELA Compression Error Gradient (High Variance = Synthetic Inpainting)"
+                    : "Displaying: Log-Magnitude FFT Spectrum (Periodic Spikes = Diffusion Upsampling Grid)"}
+                </div>
+              </div>
+
+              {/* Metrics Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div style={{ padding: "0.75rem", backgroundColor: "var(--ground-secondary)", borderRadius: "6px" }}>
+                  <span style={{ fontSize: "11px", color: "var(--muted)", display: "block" }}>ELA Error Variance</span>
+                  <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--ink)" }}>
+                    {result.pixelForensics.metrics?.elaVariance ?? "N/A"}
+                  </span>
+                </div>
+                <div style={{ padding: "0.75rem", backgroundColor: "var(--ground-secondary)", borderRadius: "6px" }}>
+                  <span style={{ fontSize: "11px", color: "var(--muted)", display: "block" }}>Spectral Grid Peaks</span>
+                  <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--ink)" }}>
+                    {result.pixelForensics.metrics?.spectralHighFreqPeaks ?? "0"}
+                  </span>
+                </div>
+                <div style={{ padding: "0.75rem", backgroundColor: "var(--ground-secondary)", borderRadius: "6px" }}>
+                  <span style={{ fontSize: "11px", color: "var(--muted)", display: "block" }}>Sensor Noise (PRNU)</span>
+                  <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--ink)" }}>
+                    {result.pixelForensics.metrics?.sensorNoiseVariance ?? "N/A"}
+                  </span>
+                </div>
+                <div style={{ padding: "0.75rem", backgroundColor: "var(--ground-secondary)", borderRadius: "6px" }}>
+                  <span style={{ fontSize: "11px", color: "var(--muted)", display: "block" }}>Neural Model Consulted</span>
+                  <span style={{ fontSize: "14px", fontWeight: 700, color: result.pixelForensics.metrics?.neuralModelConsulted ? "var(--ok)" : "var(--muted)" }}>
+                    {result.pixelForensics.metrics?.neuralModelConsulted ? "YES (ViT)" : "Mathematical"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ── 3. Recovered Generation Prompt & Parameters (Showstopper) ── */}
           {result.prompt && (

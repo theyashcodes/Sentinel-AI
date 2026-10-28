@@ -40,6 +40,7 @@ yarn-error.log*
 # python & virtual environments
 .venv/
 venv/
+forensics_service/venv/
 __pycache__/
 *.py[cod]
 *$py.class
