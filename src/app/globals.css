@@ -1,6 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400&family=JetBrains+Mono:wght@300&display=swap');
 @import 'tailwindcss';
 
+@custom-variant dark (&:where(.dark, .dark *, [data-theme="dark"], [data-theme="dark"] *));
+
 /* ══════════════════════════════════════════════════════════════
    SENTINEL AI — Dark Void Ground Design System
    Palette: #0A0A0A ground · #6366F1 indigo accent · 1px hairlines
@@ -376,7 +378,6 @@ body {
 /* ── Legacy alias reset — prevents hard crashes from old classes ── */
 .liquid-glass-canvas,
 .liquid-glass-panel,
-.liquid-glass-subcard,
 .liquid-glass-interactive,
 .liquid-glass-pill,
 .glass,
@@ -388,6 +389,28 @@ body {
   backdrop-filter: blur(14px) !important;
   -webkit-backdrop-filter: blur(14px) !important;
   color: var(--ink) !important;
+}
+
+.liquid-glass-subcard {
+  background: var(--ground-secondary) !important;
+  border: 1px solid var(--hair-10) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  color: var(--ink) !important;
+}
+
+.liquid-glass-subcard:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+
+html.light .liquid-glass-subcard:hover,
+[data-theme="light"] .liquid-glass-subcard:hover {
+  background: rgba(15, 23, 42, 0.04) !important;
+}
+
+.liquid-glass-subcard p,
+.liquid-glass-subcard span:not([class*="bg-"]) {
+  color: inherit;
 }
 
 /* Kill all stray rounded corners unconditionally */

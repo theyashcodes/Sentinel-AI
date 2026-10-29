@@ -21,10 +21,16 @@ export function EmptyState({ icon: Icon, title, description, action }: EmptyStat
       </div>
 
       {/* Typography */}
-      <h3 className="relative mt-6 font-display text-xl font-bold text-slate-900 tracking-tight">
+      <h3 
+        className="relative mt-6 font-display text-xl font-bold tracking-tight"
+        style={{ color: "var(--ink)" }}
+      >
         {title}
       </h3>
-      <p className="relative mt-2 max-w-md text-sm leading-relaxed text-slate-500 font-medium">
+      <p 
+        className="relative mt-2 max-w-md text-sm leading-relaxed font-medium"
+        style={{ color: "var(--muted)" }}
+      >
         {description}
       </p>
 

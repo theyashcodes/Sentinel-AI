@@ -16,9 +16,9 @@ async function runFeedbackTests() {
     scanId: testScanId,
     tool: "media-forensics",
     rating: 5,
-    groundTruthVerdict: "REAL_SAFE",
+    groundTruth: "GENUINE_SAFE",
     tags: ["Real Camera Photo", "Legit Metadata"],
-    notes: "Perfect camera photo detection with genuine lens noise profile.",
+    comment: "Perfect camera photo detection with genuine lens noise profile.",
     target: "sample_photo.jpg",
     originalVerdict: "HUMAN_AUTHENTIC",
     originalRiskScore: 12,
@@ -28,7 +28,7 @@ async function runFeedbackTests() {
   assert.strictEqual(firstSubmission.alreadyLocked, false, "First submission was not already locked");
   assert.strictEqual(firstSubmission.feedback.isLocked, true, "Stored feedback has isLocked: true");
   assert.strictEqual(firstSubmission.feedback.rating, 5, "Stored rating should be 5");
-  assert.strictEqual(firstSubmission.feedback.groundTruthVerdict, "REAL_SAFE");
+  assert.strictEqual(firstSubmission.feedback.groundTruth, "GENUINE_SAFE");
   console.log("✅ Step 2: First feedback submission recorded successfully with isLocked: true");
 
   // 3. Status should now be locked
@@ -43,9 +43,9 @@ async function runFeedbackTests() {
     scanId: testScanId,
     tool: "media-forensics",
     rating: 1, // Malicious attempt to change rating to 1 star
-    groundTruthVerdict: "AI_THREAT",
+    groundTruth: "MALICIOUS_SYNTHETIC",
     tags: ["Deepfake / AI Generated"],
-    notes: "Trying to overwrite locked feedback...",
+    comment: "Trying to overwrite locked feedback...",
     target: "sample_photo.jpg",
   });
 
@@ -57,7 +57,7 @@ async function runFeedbackTests() {
   // 5. Verify the original feedback was NOT altered in storage
   const feedbackAfterAttempt = await getFeedbackForScan(testScanId);
   assert.strictEqual(feedbackAfterAttempt?.rating, 5, "Rating must remain 5 and untouched");
-  assert.strictEqual(feedbackAfterAttempt?.groundTruthVerdict, "REAL_SAFE");
+  assert.strictEqual(feedbackAfterAttempt?.groundTruth, "GENUINE_SAFE");
   console.log("✅ Step 5: Original feedback remains completely immutable (still 5 stars, REAL_SAFE)");
 
   // 6. Test 1-Star Rating with Active Learning flagged
@@ -66,9 +66,9 @@ async function runFeedbackTests() {
     scanId: badScanId,
     tool: "url-scanner",
     rating: 1,
-    groundTruthVerdict: "REAL_SAFE", // Model thought it was threat, but user marks it actually safe
+    groundTruth: "GENUINE_SAFE", // Model thought it was threat, but user marks it actually safe
     tags: ["Legitimate Corporate Domain", "False Alarm on SSL"],
-    notes: "Internal staging domain flagged as phishing incorrectly.",
+    comment: "Internal staging domain flagged as phishing incorrectly.",
     target: "https://staging.internal-corp.net",
     originalVerdict: "PHISHING_THREAT",
     originalRiskScore: 92,

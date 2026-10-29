@@ -181,34 +181,34 @@ export default function UrlScannerPage() {
   const getRiskBadgeColor = (level: string) => {
     switch (level?.toUpperCase()) {
       case "SAFE":
-        return "bg-emerald-50 text-emerald-700 border border-emerald-300/80 shadow-xs";
+        return "bg-emerald-50 text-emerald-700 border border-emerald-300/80 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800 shadow-xs";
       case "LOW":
-        return "bg-sky-50 text-sky-700 border border-sky-300/80 shadow-xs";
+        return "bg-sky-50 text-sky-700 border border-sky-300/80 dark:bg-sky-950/40 dark:text-sky-400 dark:border-sky-800 shadow-xs";
       case "SUSPICIOUS":
       case "MEDIUM":
-        return "bg-amber-50 text-amber-700 border border-amber-300/80 shadow-xs";
+        return "bg-amber-50 text-amber-700 border border-amber-300/80 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800 shadow-xs";
       case "HIGH":
-        return "bg-orange-50 text-orange-700 border border-orange-300/80 shadow-xs";
+        return "bg-orange-50 text-orange-700 border border-orange-300/80 dark:bg-orange-950/40 dark:text-orange-400 dark:border-orange-800 shadow-xs";
       case "CRITICAL":
       case "MALICIOUS":
-        return "bg-rose-50 text-rose-700 border border-rose-300/80 shadow-xs";
+        return "bg-rose-50 text-rose-700 border border-rose-300/80 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800 shadow-xs";
       default:
-        return "bg-slate-100 text-slate-700 border border-slate-300/80";
+        return "bg-slate-100 text-slate-700 border border-slate-300/80 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700";
     }
   };
 
   const getSeverityBadgeColor = (severity: string) => {
     switch (severity?.toLowerCase()) {
       case "low":
-        return "bg-sky-50 text-sky-700 border border-sky-200";
+        return "bg-sky-50 text-sky-700 border border-sky-200 dark:bg-sky-950/40 dark:text-sky-400 dark:border-sky-800";
       case "medium":
-        return "bg-amber-50 text-amber-700 border border-amber-200";
+        return "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800";
       case "high":
-        return "bg-rose-50 text-rose-700 border border-rose-200";
+        return "bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800";
       case "critical":
-        return "bg-purple-50 text-purple-700 border border-purple-200";
+        return "bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800";
       default:
-        return "bg-slate-100 text-slate-600";
+        return "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700";
     }
   };
 
@@ -229,7 +229,7 @@ export default function UrlScannerPage() {
       >
         <button 
           onClick={fetchHistory}
-          className="liquid-glass-pill px-4 py-2 rounded-2xl flex items-center gap-2 text-xs font-semibold text-slate-700 hover:text-slate-950 transition-all shadow-xs cursor-pointer"
+          className="liquid-glass-pill px-4 py-2 rounded-2xl flex items-center gap-2 text-xs font-semibold text-slate-700 hover:text-slate-950 dark:text-slate-300 dark:hover:text-white transition-all shadow-xs cursor-pointer"
         >
           <RefreshCw className="h-3.5 w-3.5 text-blue-600" />
           <span>Refresh Stats</span>
@@ -242,14 +242,21 @@ export default function UrlScannerPage() {
           {/* Target URL Input Card */}
           <LiquidGlassCard className="p-4 sm:p-7">
             <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 rounded-2xl bg-blue-50 border border-blue-200/60 flex items-center justify-center text-blue-600 shadow-xs">
+              <div 
+                className="w-10 h-10 rounded-2xl flex items-center justify-center shadow-xs"
+                style={{
+                  backgroundColor: "var(--accent-subtle)",
+                  border: "1px solid var(--hair-10)",
+                  color: "var(--accent)",
+                }}
+              >
                 <Globe2 className="h-5 w-5" />
               </div>
               <div>
-                <h2 className="font-display text-lg font-bold text-slate-900 tracking-tight">
+                <h2 className="font-display text-lg font-bold tracking-tight" style={{ color: "var(--ink)" }}>
                   Scan a Target URL
                 </h2>
-                <p className="text-xs text-slate-500 font-medium">
+                <p className="text-xs font-medium" style={{ color: "var(--muted)" }}>
                   Enter any suspicious domain, shortlink, or destination link to analyze it instantly.
                 </p>
               </div>
@@ -264,7 +271,12 @@ export default function UrlScannerPage() {
                   placeholder="https://example-banking-verification.com/login"
                   value={url}
                   onChange={(event) => setUrl(event.target.value)}
-                  className="h-13 min-w-0 flex-1 rounded-2xl border border-slate-200/90 bg-white/90 px-4 font-mono text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 shadow-inner"
+                  className="h-13 min-w-0 flex-1 rounded-2xl border px-4 font-mono text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 shadow-inner"
+                  style={{
+                    backgroundColor: "var(--ground-secondary)",
+                    borderColor: "var(--hair-10)",
+                    color: "var(--ink)",
+                  }}
                   required
                   disabled={loading}
                 />
@@ -280,45 +292,37 @@ export default function UrlScannerPage() {
 
               {/* Quick sample chips */}
               <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Quick Test:</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setUrl("https://github.com");
-                    setResult(null);
-                    setError(null);
-                  }}
-                  className="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-mono text-[11px] transition-colors cursor-pointer"
-                >
-                  github.com
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setUrl("https://apple.com-login-verify.top/auth");
-                    setResult(null);
-                    setError(null);
-                  }}
-                  className="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-mono text-[11px] transition-colors cursor-pointer"
-                >
-                  apple.com-login...
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setUrl("http://192.168.1.1/admin");
-                    setResult(null);
-                    setError(null);
-                  }}
-                  className="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-mono text-[11px] transition-colors cursor-pointer"
-                >
-                  192.168.1.1 (SSRF)
-                </button>
+                <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>
+                  Quick Test:
+                </span>
+                {[
+                  { label: "github.com", val: "https://github.com" },
+                  { label: "apple.com-login...", val: "https://apple.com-login-verify.top/auth" },
+                  { label: "192.168.1.1 (SSRF)", val: "http://192.168.1.1/admin" },
+                ].map((chip) => (
+                  <button
+                    key={chip.label}
+                    type="button"
+                    onClick={() => {
+                      setUrl(chip.val);
+                      setResult(null);
+                      setError(null);
+                    }}
+                    className="px-2.5 py-1 rounded-xl font-mono text-[11px] transition-colors cursor-pointer border"
+                    style={{
+                      backgroundColor: "var(--ground-secondary)",
+                      borderColor: "var(--hair-10)",
+                      color: "var(--ink-secondary)",
+                    }}
+                  >
+                    {chip.label}
+                  </button>
+                ))}
               </div>
             </form>
 
             {error && (
-              <div className="mt-5 flex gap-3 items-start p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-2xl text-xs font-medium">
+              <div className="mt-5 flex gap-3 items-start p-4 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 rounded-2xl text-xs font-medium">
                 <FileWarning className="h-4 w-4 shrink-0 mt-0.5" />
                 <div>
                   <span className="font-bold block mb-0.5">Diagnostics Notice</span>
@@ -332,12 +336,12 @@ export default function UrlScannerPage() {
           {loading && (
             <LiquidGlassCard className="p-4 sm:p-7">
               <div className="py-4 flex flex-col items-center justify-center space-y-3 text-center">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 border border-blue-200 text-blue-600 animate-spin">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 animate-spin">
                   <RefreshCw className="h-6 w-6" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900">Security Sweep In Progress</h3>
-                  <p className="text-xs text-slate-500 mt-1 font-mono">{loadingStage}</p>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">Security Sweep In Progress</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-mono">{loadingStage}</p>
                 </div>
               </div>
             </LiquidGlassCard>
@@ -350,28 +354,28 @@ export default function UrlScannerPage() {
               <LiquidGlassCard className="p-4 sm:p-6">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1 space-y-2">
-                    <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                    <h4 className="text-[11px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
                       <Sparkles className="h-3.5 w-3.5 text-blue-500" />
                       Target URL Destination
                     </h4>
-                    <p className="font-mono text-xs sm:text-sm font-semibold text-blue-600 break-all bg-blue-50/50 p-3.5 rounded-xl border border-blue-100">
+                    <p className="font-mono text-xs sm:text-sm font-semibold text-blue-600 dark:text-blue-400 break-all bg-blue-50/50 dark:bg-blue-950/40 p-3.5 rounded-xl border border-blue-100 dark:border-blue-900/50">
                       {result.normalized}
                     </p>
                     {result.parsedHostname && (
                       <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
-                        <span className="text-[11px] text-slate-500">
-                          Destination Hostname: <strong className="font-mono text-slate-800">{result.displayHostname || result.parsedHostname}</strong>
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                          Destination Hostname: <strong className="font-mono text-slate-800 dark:text-slate-200">{result.displayHostname || result.parsedHostname}</strong>
                         </span>
                         {result.domain && result.domain !== result.parsedHostname && (
-                          <span className="text-[11px] text-slate-400">
-                            • Registrable Domain: <strong className="font-mono text-slate-700">{result.domain}</strong>
+                          <span className="text-[11px] text-slate-400 dark:text-slate-400">
+                            • Registrable Domain: <strong className="font-mono text-slate-700 dark:text-slate-300">{result.domain}</strong>
                           </span>
                         )}
                       </div>
                     )}
                     {result.hasUserInfo && result.explanation && (
-                      <div className="p-2.5 rounded-xl bg-amber-50/80 border border-amber-200/80 text-amber-800 text-xs flex items-start gap-2">
-                        <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
+                      <div className="p-2.5 rounded-xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/60 text-amber-800 dark:text-amber-300 text-xs flex items-start gap-2">
+                        <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
                         <span>{result.explanation}</span>
                       </div>
                     )}
@@ -381,7 +385,7 @@ export default function UrlScannerPage() {
                       href={result.normalized}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="mt-6 p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 transition-colors"
+                      className="mt-6 p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
                       title="Open target (Proceed with caution)"
                     >
                       <ExternalLink className="h-4 w-4" />
@@ -395,22 +399,22 @@ export default function UrlScannerPage() {
                 <LiquidGlassCard className="p-4 sm:p-6 flex flex-col justify-between">
                   <div>
                     <div className="flex items-center gap-2 mb-3">
-                      <FileText className="h-4 w-4 text-blue-600" />
-                      <h3 className="font-bold text-sm text-slate-900 tracking-tight">Executive Verdict</h3>
+                      <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                      <h3 className="font-bold text-sm text-slate-900 dark:text-white tracking-tight">Executive Verdict</h3>
                     </div>
-                    <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                    <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
                       {result.reasoning}
                     </p>
                   </div>
 
                   {result.indicators && result.indicators.length > 0 && (
-                    <div className="mt-4 pt-4 border-t border-slate-100">
-                      <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                    <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                      <h4 className="text-[11px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider mb-2">
                         Key Risk Indicators
                       </h4>
                       <ul className="space-y-1.5">
                         {result.indicators.map((ind, i) => (
-                          <li key={i} className="text-xs text-slate-700 flex items-start gap-2">
+                          <li key={i} className="text-xs text-slate-700 dark:text-slate-300 flex items-start gap-2">
                             <span className="text-rose-500 font-bold">•</span>
                             <span>{ind}</span>
                           </li>
@@ -423,8 +427,8 @@ export default function UrlScannerPage() {
                 {/* HTTP Perimeter Security Audit */}
                 <LiquidGlassCard className="p-4 sm:p-6">
                   <div className="flex items-center gap-2 mb-3">
-                    <ShieldCheck className="h-4 w-4 text-blue-600" />
-                    <h3 className="font-bold text-sm text-slate-900 tracking-tight">Perimeter Security Controls</h3>
+                    <ShieldCheck className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                    <h3 className="font-bold text-sm text-slate-900 dark:text-white tracking-tight">Perimeter Security Controls</h3>
                   </div>
 
                   <div className="space-y-2.5">
@@ -464,35 +468,35 @@ export default function UrlScannerPage() {
                       const explanation = check?.explanation || (status === "NOT_TESTED" ? defaultNotTestedExp : "");
 
                       return (
-                        <div key={i} className="flex items-center justify-between p-2.5 rounded-xl bg-white/60 border border-slate-200/60">
+                        <div key={i} className="flex items-center justify-between p-2.5 rounded-xl bg-white/60 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800/80">
                           <div className="min-w-0 pr-2">
-                            <span className="font-bold text-xs text-slate-800 block">{item.name}</span>
-                            <span className="text-[10px] text-slate-400 block truncate" title={explanation}>
+                            <span className="font-bold text-xs text-slate-800 dark:text-slate-200 block">{item.name}</span>
+                            <span className="text-[10px] text-slate-400 dark:text-slate-400 block truncate" title={explanation}>
                               {explanation || item.desc}
                             </span>
                           </div>
                           <span
                             className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0 flex items-center gap-1 ${
                               status === "PASS"
-                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800"
                                 : status === "FAIL"
-                                ? "bg-rose-50 text-rose-700 border border-rose-200"
-                                : "bg-slate-100 text-slate-600 border border-slate-200"
+                                ? "bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800"
+                                : "bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
                             }`}
                           >
                             {status === "PASS" ? (
                               <>
-                                <CheckCircle className="h-3 w-3 text-emerald-600" />
+                                <CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
                                 <span>PASS</span>
                               </>
                             ) : status === "FAIL" ? (
                               <>
-                                <XCircle className="h-3 w-3 text-rose-600" />
+                                <XCircle className="h-3 w-3 text-rose-600 dark:text-rose-400" />
                                 <span>FAIL</span>
                               </>
                             ) : (
                               <>
-                                <MinusCircle className="h-3 w-3 text-slate-400" />
+                                <MinusCircle className="h-3 w-3 text-slate-400 dark:text-slate-400" />
                                 <span>NOT TESTED</span>
                               </>
                             )}
@@ -502,10 +506,10 @@ export default function UrlScannerPage() {
                     })}
 
                     {/* Network Redirect Telemetry Status */}
-                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/60 border border-slate-200/60">
+                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/60 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800/80">
                       <div className="min-w-0 pr-2">
-                        <span className="font-bold text-xs text-slate-800 block">Redirect Chain Telemetry</span>
-                        <span className="text-[10px] text-slate-400 block truncate" title={
+                        <span className="font-bold text-xs text-slate-800 dark:text-slate-200 block">Redirect Chain Telemetry</span>
+                        <span className="text-[10px] text-slate-400 dark:text-slate-400 block truncate" title={
                           result.securityChecks?.networkRedirectStatus === "VERIFIED_HTTP_CHAIN"
                             ? "Observed active HTTP hop chain"
                             : (result.evidence?.ssrfProtected || result.securityChecks?.networkRedirectStatus === "BLOCKED_SSRF" || result.threatType === "SSRF_ATTEMPT")
@@ -521,17 +525,17 @@ export default function UrlScannerPage() {
                       </div>
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0 flex items-center gap-1 ${
                         result.securityChecks?.networkRedirectStatus === "VERIFIED_HTTP_CHAIN"
-                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                          : "bg-slate-100 text-slate-600 border border-slate-200"
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800"
+                          : "bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
                       }`}>
                         {result.securityChecks?.networkRedirectStatus === "VERIFIED_HTTP_CHAIN" ? (
                           <>
-                            <CheckCircle className="h-3 w-3 text-emerald-600" />
+                            <CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
                             <span>PASS</span>
                           </>
                         ) : (
                           <>
-                            <MinusCircle className="h-3 w-3 text-slate-400" />
+                            <MinusCircle className="h-3 w-3 text-slate-400 dark:text-slate-400" />
                             <span>NOT TESTED</span>
                           </>
                         )}
@@ -544,19 +548,19 @@ export default function UrlScannerPage() {
                 {result.securityChecks?.warnings && result.securityChecks.warnings.length > 0 && (
                   <LiquidGlassCard className="p-4 sm:p-6 md:col-span-2">
                     <div className="flex items-center gap-2 mb-3">
-                      <AlertTriangle className="h-4 w-4 text-amber-600" />
-                      <h3 className="font-bold text-sm text-slate-900 tracking-tight">Active Security Diagnosed Anomalies</h3>
+                      <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                      <h3 className="font-bold text-sm text-slate-900 dark:text-white tracking-tight">Active Security Diagnosed Anomalies</h3>
                     </div>
 
                     <div className="space-y-2.5">
                       {result.securityChecks.warnings.map((w, idx) => (
-                        <div key={idx} className="p-3 rounded-2xl bg-white/80 border border-slate-200/80 flex items-start justify-between gap-3 shadow-xs">
+                        <div key={idx} className="p-3 rounded-2xl bg-white/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 flex items-start justify-between gap-3 shadow-xs">
                           <div className="space-y-0.5">
-                            <span className="text-xs font-bold text-slate-900 flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
                               {w.title}
-                              <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 uppercase">{w.code}</span>
+                              <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 uppercase">{w.code}</span>
                             </span>
-                            <p className="text-[11px] text-slate-600 leading-relaxed">{w.description}</p>
+                            <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">{w.description}</p>
                           </div>
                           <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 ${getSeverityBadgeColor(w.severity)}`}>
                             {w.severity}
@@ -594,7 +598,7 @@ export default function UrlScannerPage() {
         <div className="lg:col-span-4 space-y-7">
           {/* Security Score Panel */}
           <LiquidGlassCard className="p-4 sm:p-7 text-center">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">
+            <h3 className="text-xs font-bold uppercase tracking-widest mb-6" style={{ color: "var(--muted)" }}>
               Threat Risk Assessment
             </h3>
 
@@ -605,7 +609,7 @@ export default function UrlScannerPage() {
                   cx="72"
                   cy="72"
                   r={radius}
-                  stroke="#e2e8f0"
+                  stroke="var(--hair-10)"
                   strokeWidth="10"
                   fill="transparent"
                 />
@@ -636,17 +640,23 @@ export default function UrlScannerPage() {
                 />
               </svg>
               <div className="absolute flex flex-col items-center">
-                <span className="text-4xl font-extrabold text-slate-900 font-display">
+                <span 
+                  className="text-4xl font-extrabold font-display"
+                  style={{ color: "var(--ink)" }}
+                >
                   {result ? riskScore : "—"}
                 </span>
-                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+                <span 
+                  className="text-[10px] font-bold uppercase tracking-widest mt-0.5"
+                  style={{ color: "var(--muted)" }}
+                >
                   Risk Score
                 </span>
               </div>
             </div>
 
             <div className="mt-5 space-y-2">
-              <span className="text-xs text-slate-400 block font-medium">Verified Threat Classification</span>
+              <span className="text-xs block font-medium" style={{ color: "var(--muted)" }}>Verified Threat Classification</span>
               {result ? (
                 <div className="space-y-1.5">
                   <div>
@@ -654,19 +664,33 @@ export default function UrlScannerPage() {
                       {result.riskLevel} RISK
                     </span>
                   </div>
-                  <div className="flex items-center justify-center gap-3 text-[11px] text-slate-500 font-medium">
-                    <span>Authenticity: <strong className="text-slate-800">{authenticityScore}/100</strong></span>
+                  <div className="flex items-center justify-center gap-3 text-[11px] font-medium" style={{ color: "var(--muted)" }}>
+                    <span>Authenticity: <strong style={{ color: "var(--ink)" }}>{authenticityScore}/100</strong></span>
                     <span>•</span>
                     <span title={result.confidenceLabel || "Heuristic Confidence Estimate"}>
-                      Confidence: <strong className="text-slate-800">{result.confidence}%</strong>
-                      <span className="ml-1 text-[9px] uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-semibold border border-slate-200/60">
+                      Confidence: <strong style={{ color: "var(--ink)" }}>{result.confidence}%</strong>
+                      <span 
+                        className="ml-1 text-[9px] uppercase px-1.5 py-0.5 rounded font-semibold border"
+                        style={{
+                          backgroundColor: "var(--ground-secondary)",
+                          color: "var(--ink-secondary)",
+                          borderColor: "var(--hair-10)"
+                        }}
+                      >
                         {result.confidenceType === "CALIBRATED_EVIDENCE" ? "Verified" : "Heuristic"}
                       </span>
                     </span>
                   </div>
                 </div>
               ) : (
-                <span className="inline-flex items-center rounded-full px-3.5 py-1 text-xs font-semibold text-slate-500 bg-slate-100 border border-slate-200/80 uppercase tracking-wider">
+                <span 
+                  className="inline-flex items-center rounded-full px-3.5 py-1 text-xs font-semibold uppercase tracking-wider"
+                  style={{
+                    backgroundColor: "var(--ground-secondary)",
+                    color: "var(--muted)",
+                    border: "1px solid var(--hair-10)"
+                  }}
+                >
                   Diagnostics Idle
                 </span>
               )}
@@ -674,12 +698,12 @@ export default function UrlScannerPage() {
 
             {/* Explainable 6-Dimension Risk Factor Breakdown */}
             {result && result.scoreBreakdown && (
-              <div className="mt-6 pt-5 border-t border-slate-200/80 text-left space-y-3">
+              <div className="mt-6 pt-5 border-t border-slate-200/80 dark:border-slate-800 text-left space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                     Weighted Signal Attribution
                   </span>
-                  <span className="text-[11px] font-mono font-bold text-slate-800">
+                  <span className="text-[11px] font-mono font-bold text-slate-800 dark:text-slate-200">
                     {result.scoreBreakdown.totalRiskScore}/100
                   </span>
                 </div>
@@ -694,11 +718,11 @@ export default function UrlScannerPage() {
                     { label: "Contextual Lures", val: result.scoreBreakdown.contextualLureScore, max: 5 },
                   ].map((dim, idx) => (
                     <div key={idx} className="space-y-1">
-                      <div className="flex justify-between text-[10px] text-slate-600">
+                      <div className="flex justify-between text-[10px] text-slate-600 dark:text-slate-300">
                         <span>{dim.label}</span>
                         <span className="font-mono font-bold">{dim.val}/{dim.max}</span>
                       </div>
-                      <div className="w-full h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                      <div className="w-full h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
                         <div
                           className={`h-full rounded-full transition-all duration-500 ${
                             dim.val === 0 ? "bg-emerald-400" : dim.val >= dim.max * 0.7 ? "bg-rose-500" : "bg-amber-400"
@@ -717,10 +741,10 @@ export default function UrlScannerPage() {
           <LiquidGlassCard className="p-4 sm:p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <History className="h-4 w-4 text-blue-600" />
-                <h3 className="font-bold text-sm text-slate-900 tracking-tight">Recent URL Audits</h3>
+                <History className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                <h3 className="font-bold text-sm text-slate-900 dark:text-white tracking-tight">Recent URL Audits</h3>
               </div>
-              <span className="text-[11px] text-slate-400 font-medium">Last 5 scans</span>
+              <span className="text-[11px] text-slate-400 dark:text-slate-400 font-medium">Last 5 scans</span>
             </div>
 
             {history.length > 0 ? (
@@ -775,13 +799,20 @@ export default function UrlScannerPage() {
                           evidence: meta?.evidence || null
                         });
                       }}
-                      className="liquid-glass-subcard p-3 rounded-2xl flex items-center justify-between cursor-pointer group hover:bg-slate-50 transition-colors"
+                      className="liquid-glass-subcard p-3 rounded-2xl flex items-center justify-between cursor-pointer group transition-colors"
+                      style={{
+                        backgroundColor: "var(--ground-secondary)",
+                        border: "1px solid var(--hair-10)",
+                      }}
                     >
                       <div className="min-w-0 pr-2">
-                        <p className="font-mono text-xs font-bold text-slate-800 truncate">
+                        <p 
+                          className="font-mono text-xs font-bold truncate"
+                          style={{ color: "var(--ink)" }}
+                        >
                           {scan.payload || "URL Target"}
                         </p>
-                        <p className="text-[10px] text-slate-400 mt-0.5">
+                        <p className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>
                           {new Date(scan.createdAt).toLocaleDateString()}
                         </p>
                       </div>

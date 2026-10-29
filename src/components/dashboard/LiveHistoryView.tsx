@@ -292,7 +292,7 @@ export function LiveHistoryView({ initialScans }: LiveHistoryViewProps) {
                     borderTop: i === 0 ? "none" : "1px solid var(--hair-06)",
                     transition: "background-color 0.15s ease",
                   }}
-                  className="group hover:bg-slate-50/50"
+                  className="group hover:bg-white/[0.03] transition-colors"
                 >
                   <div
                     style={{
@@ -426,7 +426,13 @@ export function LiveHistoryView({ initialScans }: LiveHistoryViewProps) {
 
                   {/* Inline Feedback Drawer */}
                   {expandedFeedbackScanId === scan.id && (
-                    <div className="px-4 py-4 bg-slate-50/70 border-t border-slate-200/70 animate-in fade-in duration-150">
+                    <div 
+                      className="px-4 py-4 animate-in fade-in duration-150"
+                      style={{
+                        backgroundColor: "var(--ground-secondary)",
+                        borderTop: "1px solid var(--hair-10)"
+                      }}
+                    >
                       <ScanFeedbackWidget
                         scanId={scan.id}
                         tool={getToolForScan(scan)}
