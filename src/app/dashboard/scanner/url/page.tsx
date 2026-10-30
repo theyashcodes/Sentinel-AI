@@ -140,9 +140,24 @@ export default function UrlScannerPage() {
         body: JSON.stringify({ url }),
       });
 
-      const data = await response.json();
+      let data: any;
+      const responseText = await response.text();
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        throw new Error(
+          response.ok
+            ? "Invalid diagnostics payload received from server"
+            : `Diagnostics Server Error (${response.status}): ${responseText.slice(0, 140) || response.statusText}`
+        );
+      }
+
       if (!response.ok) {
-        throw new Error(data.message || data.error || "Failed to scan URL");
+        const errorMsg =
+          typeof data.error === "object"
+            ? data.error?.message
+            : data.message || data.error;
+        throw new Error(errorMsg || `Diagnostic evaluation failed with status ${response.status}`);
       }
 
       setResult(data);
@@ -169,8 +184,13 @@ export default function UrlScannerPage() {
         ],
         rawResult: data,
       });
-    } catch (scanError) {
-      setError(scanError instanceof Error ? scanError.message : "An unexpected error occurred.");
+    } catch (scanError: any) {
+      const rawMsg = scanError instanceof Error ? scanError.message : "An unexpected error occurred.";
+      const friendlyMsg =
+        rawMsg === "Load failed" || rawMsg.includes("Failed to fetch")
+          ? "Network timeout or connection interrupted while gathering threat evidence. Please try again."
+          : rawMsg;
+      setError(friendlyMsg);
       setResult(null);
     } finally {
       clearInterval(interval);

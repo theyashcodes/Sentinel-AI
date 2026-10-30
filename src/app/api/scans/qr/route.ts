@@ -13,6 +13,9 @@ import { QRScanResponse } from "@/modules/scanner/qr/types/qr-scanner";
 import { assertRateLimit, scanRateLimit } from "@/lib/rate-limit";
 import { handleApiError } from "@/lib/errors";
 
+export const maxDuration = 60;
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   let decodedText = "";
   let normalizedUrl = "";

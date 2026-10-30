@@ -13,6 +13,9 @@ import type { InputJsonValue } from "@prisma/client/runtime/client";
 import { handleApiError, ValidationError } from "@/lib/errors";
 import { assertRateLimit, scanRateLimit } from "@/lib/rate-limit";
 
+export const maxDuration = 60;
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   let payloadHash = "";
   let ipHash = "";

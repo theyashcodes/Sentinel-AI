@@ -23,7 +23,7 @@ export class NativeWhoisProvider implements IWhoisProvider {
         timeoutId = setTimeout(() => {
           console.warn(`WHOIS timeout for domain: ${domain}`);
           res(null);
-        }, 5000);
+        }, 1500);
       });
 
       const whoisPromise = new Promise<WhoisData | null>((res) => {

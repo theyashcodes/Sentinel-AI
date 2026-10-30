@@ -1,4 +1,5 @@
 import { execFile } from "child_process";
+import fs from "fs";
 import path from "path";
 import { promisify } from "util";
 import { RiskLevel } from "@prisma/client";
@@ -32,13 +33,13 @@ export class MLInferenceService {
   static async predict(url: string): Promise<SentinelScanVerdict> {
     let result: MLPredictionResult | null = null;
 
-    // 1. Attempt ultra-fast call to local ML daemon (2ms)
+    // 1. Attempt ultra-fast call to local ML daemon (2ms) if available
     try {
       const response = await fetch(this.microserviceUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url }),
-        signal: AbortSignal.timeout(1500),
+        signal: AbortSignal.timeout(400),
       });
 
       if (response.ok) {
@@ -48,19 +49,21 @@ export class MLInferenceService {
       // Microservice not responding, will use fallback
     }
 
-    // 2. Fallback: run CLI predict.py using virtual environment
+    // 2. Fallback: run CLI predict.py using virtual environment (if python bin exists)
     if (!result) {
       try {
         const rootDir = process.cwd();
         const pythonBin = process.env.PYTHON_PATH || [rootDir, ".venv", "bin", "python"].join(path.sep);
         const scriptPath = [rootDir, "ml", "predict.py"].join(path.sep);
 
-        const { stdout } = await execFileAsync(pythonBin, [scriptPath, url], {
-          timeout: 4000,
-          cwd: rootDir,
-        });
+        if (fs.existsSync(pythonBin) && fs.existsSync(scriptPath)) {
+          const { stdout } = await execFileAsync(pythonBin, [scriptPath, url], {
+            timeout: 2500,
+            cwd: rootDir,
+          });
 
-        result = JSON.parse(stdout) as MLPredictionResult;
+          result = JSON.parse(stdout) as MLPredictionResult;
+        }
       } catch (err) {
         console.error("ML CLI execution error:", err);
       }

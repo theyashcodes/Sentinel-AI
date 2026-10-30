@@ -185,22 +185,28 @@ export default function QrScannerPage() {
         body: formData,
       });
 
-      if (!response.ok) {
+      let data: any;
+      const responseText = await response.text();
+      try {
+        data = JSON.parse(responseText);
+      } catch {
         if (response.status === 413) {
           throw new Error("File is too large for server analysis. Please upload an image under 4.5 MB.");
         }
-        let errorMsg = "Failed to analyze QR code.";
-        try {
-          const errData = await response.json();
-          errorMsg = errData.message || errData.error || errorMsg;
-        } catch {
-          const text = await response.text();
-          if (text) errorMsg = text.slice(0, 100);
-        }
-        throw new Error(errorMsg);
+        throw new Error(
+          response.ok
+            ? "Invalid diagnostics payload received from server"
+            : `Diagnostics Server Error (${response.status}): ${responseText.slice(0, 140) || response.statusText}`
+        );
       }
 
-      const data = await response.json();
+      if (!response.ok) {
+        const errorMsg =
+          typeof data.error === "object"
+            ? data.error?.message
+            : data.message || data.error;
+        throw new Error(errorMsg || `Diagnostic evaluation failed with status ${response.status}`);
+      }
 
       setResult(data);
       fetchHistory();
@@ -224,8 +230,13 @@ export default function QrScannerPage() {
       } catch (cybroErr) {
         console.warn("Failed to notify CyBro:", cybroErr);
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An unexpected server error occurred.");
+    } catch (err: any) {
+      const rawMsg = err instanceof Error ? err.message : "An unexpected server error occurred.";
+      const friendlyMsg =
+        rawMsg === "Load failed" || rawMsg.includes("Failed to fetch")
+          ? "Network timeout or connection interrupted while gathering threat evidence. Please try again."
+          : rawMsg;
+      setError(friendlyMsg);
     } finally {
       clearInterval(interval);
       setLoading(false);

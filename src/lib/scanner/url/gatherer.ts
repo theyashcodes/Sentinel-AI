@@ -333,41 +333,46 @@ export class EvidenceGatherer {
       evidence.dns = null;
     }
 
-    // 2. WHOIS Lookup (Best effort, non-fatal for valid public domains)
-    try {
-      const isSynthetic =
-        hostname.endsWith(".test") ||
-        hostname.endsWith(".example") ||
-        hostname.endsWith(".invalid") ||
-        hostname.endsWith(".localhost") ||
-        net.isIP(hostname.replace(/^\[|\]$/g, "")) !== 0;
-      if (!isSynthetic) {
-        const whoisProvider = whoisRegistry.getProvider();
-        const whoisData = await whoisProvider.lookup(hostname);
-        if (whoisData) {
-          evidence.whois = whoisData as unknown as Record<string, unknown>;
+    // 2 & 3. Run WHOIS Lookup & HTTP Inspection concurrently to maximize speed and prevent timeouts
+    const whoisPromise = (async () => {
+      try {
+        const isSynthetic =
+          hostname.endsWith(".test") ||
+          hostname.endsWith(".example") ||
+          hostname.endsWith(".invalid") ||
+          hostname.endsWith(".localhost") ||
+          net.isIP(hostname.replace(/^\[|\]$/g, "")) !== 0;
+        if (!isSynthetic) {
+          const whoisProvider = whoisRegistry.getProvider();
+          const whoisData = await whoisProvider.lookup(hostname);
+          if (whoisData) {
+            evidence.whois = whoisData as unknown as Record<string, unknown>;
+          }
         }
+      } catch {
+        evidence.whois = null;
       }
-    } catch {
-      evidence.whois = null;
-    }
+    })();
 
-    // 3. Controlled HTTP Inspection with SSRF Guard on Every Hop
-    try {
-      await this.fetchHttpEvidence(normalizedUrl, evidence, 0, options, validation);
-    } catch (err: any) {
-      if (err?.message?.includes("SSRF") || evidence.ssrfProtected) {
-        evidence.ssrfProtected = true;
-        evidence.networkRedirectStatus = "BLOCKED_SSRF";
-        if (!evidence.headers) {
-          evidence.headers = {};
+    const httpPromise = (async () => {
+      try {
+        await this.fetchHttpEvidence(normalizedUrl, evidence, 0, options, validation);
+      } catch (err: any) {
+        if (err?.message?.includes("SSRF") || evidence.ssrfProtected) {
+          evidence.ssrfProtected = true;
+          evidence.networkRedirectStatus = "BLOCKED_SSRF";
+          if (!evidence.headers) {
+            evidence.headers = {};
+          }
+          (evidence.headers as Record<string, unknown>)["x-sentinel-ssrf-block"] =
+            `Prohibited internal or loopback destination. Network scan aborted: ${err?.message || ""}`;
+        } else {
+          evidence.networkRedirectStatus = "FAILED";
         }
-        (evidence.headers as Record<string, unknown>)["x-sentinel-ssrf-block"] =
-          `Prohibited internal or loopback destination. Network scan aborted: ${err?.message || ""}`;
-      } else {
-        evidence.networkRedirectStatus = "FAILED";
       }
-    }
+    })();
+
+    await Promise.allSettled([whoisPromise, httpPromise]);
 
     // 4. Compute verified security headers audit
     const isFinalHttps = (evidence.finalUrl || normalizedUrl).startsWith("https");
@@ -546,6 +551,9 @@ export class EvidenceGatherer {
 
       // Defense-in-depth: Validate connected socket remoteAddress against the approved IP set
       req.on("socket", (socket: net.Socket) => {
+        // Prevent unhandled error event crash on socket instance
+        socket.on("error", () => {});
+
         const verifySocketAddress = () => {
           const rawRemote = options?.simulateSocketRemoteAddress || socket.remoteAddress;
           if (!rawRemote) {
@@ -568,7 +576,9 @@ export class EvidenceGatherer {
           }
         };
 
-        if (socket.connecting) {
+        if (options?.simulateSocketRemoteAddress) {
+          verifySocketAddress();
+        } else if (socket.connecting) {
           socket.once("connect", verifySocketAddress);
           if (isHttps) {
             socket.once("secureConnect", verifySocketAddress);
